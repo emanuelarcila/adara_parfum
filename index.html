@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0b0a" />
+    <meta name="description" content="ADARA PARFUM — perfumería contemporánea, concebida como una expresión personal." />
+    <title>ADARA PARFUM — Obsidiana & oro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="store-config.js" defer></script>
+    <script src="products.js" defer></script>
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Ir al contenido</a>
+    <header class="site-header">
+      <button class="icon-button menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="primary-nav">
+        <span></span><span></span>
+      </button>
+      <nav id="primary-nav" class="primary-nav" aria-label="Navegación principal">
+        <a href="#coleccion">Colección</a>
+        <a href="#universo">El universo</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+      <a class="wordmark" href="#inicio" aria-label="ADARA PARFUM, inicio">ADARA <span>PARFUM</span></a>
+      <div class="header-actions">
+        <button class="cart-trigger" type="button" aria-label="Abrir bolsa de compra, vacía" aria-haspopup="dialog">
+          Bolsa <span class="cart-count">00</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="contenido">
+      <section class="hero" id="inicio" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow hero-eyebrow">Perfumería contemporánea</p>
+          <h1 id="hero-title">El arte de<br /><em>permanecer.</em></h1>
+          <p class="hero-description">Una presencia íntima. Un recuerdo que toma forma en la piel.</p>
+          <a class="text-link" href="#coleccion">Descubrir la colección <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="hero-visual" role="img" aria-label="Espacio reservado para fotografía editorial de la fragancia ADARA">
+          <div class="hero-visual-light"></div>
+          <div class="image-placeholder">
+            <span class="placeholder-mark" aria-hidden="true">A</span>
+            <span>Fotografía de campaña<br />pendiente</span>
+          </div>
+          <p class="visual-caption">OBSIDIANO / ESTUDIO 01</p>
+        </div>
+        <div class="hero-index" aria-hidden="true"><span>AD</span><i></i><span>01</span></div>
+      </section>
+
+      <section class="intro section-shell" id="universo" aria-labelledby="intro-title">
+        <p class="eyebrow">Una firma, una sensación</p>
+        <div class="intro-content">
+          <h2 id="intro-title">La elegancia de<br />lo <em>inolvidable.</em></h2>
+          <div class="intro-aside">
+            <span class="fine-rule"></span>
+            <p>ADARA PARFUM explora la fragancia como un gesto personal: sereno, profundo y propio.</p>
+            <a href="#coleccion" class="text-link">Descubre la colección <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </section>
+
+      <section class="collection section-shell" id="coleccion" aria-labelledby="collection-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Selección ADARA</p>
+            <h2 id="collection-title">La colección</h2>
+          </div>
+          <p class="section-note">Cada fragancia, una nueva forma<br />de dejar huella.</p>
+        </div>
+        <div class="catalog-toolbar" hidden>
+          <label class="search-field"><span class="visually-hidden">Buscar fragancias</span><input id="product-search" type="search" placeholder="Buscar fragancia" autocomplete="off" /><span aria-hidden="true">⌕</span></label>
+          <label class="sort-field"><span>Familia</span><select id="product-family" aria-label="Filtrar por familia"><option value="all">Todas</option></select></label>
+          <label class="sort-field"><span>Ordenar</span><select id="product-sort" aria-label="Ordenar productos"><option value="featured">Destacados</option><option value="price-asc">Precio: menor a mayor</option><option value="price-desc">Precio: mayor a menor</option><option value="name">Nombre</option></select></label>
+        </div>
+        <p class="catalog-status" id="catalog-status" role="status" aria-live="polite"></p>
+        <div class="product-grid" id="product-grid"></div>
+        <noscript><p class="catalog-empty">Activa JavaScript para explorar la colección.</p></noscript>
+      </section>
+
+      <section class="closing" id="contacto" aria-labelledby="closing-title">
+        <div class="closing-image" role="img" aria-label="Espacio reservado para imagen de campaña de ADARA PARFUM">
+          <span>Imagen editorial pendiente</span>
+        </div>
+        <div class="closing-copy">
+          <p class="eyebrow">ADARA PARFUM</p>
+          <h2 id="closing-title">Un mundo<br />hecho de <em>matices.</em></h2>
+          <div class="contact-content" id="contact-content"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="wordmark footer-wordmark" href="#inicio">ADARA <span>PARFUM</span></a>
+      <p>Perfumería contemporánea</p>
+      <span>© ADARA PARFUM</span>
+    </footer>
+
+    <div class="cart-backdrop" hidden></div>
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-hidden="true" inert>
+      <div class="cart-drawer-head"><p class="eyebrow">Tu selección</p><button class="cart-close icon-button" type="button" aria-label="Cerrar bolsa">×</button></div>
+      <h2 id="cart-title">Tu bolsa <span class="cart-heading-count"></span></h2>
+      <p class="visually-hidden" id="cart-announcement" aria-live="polite" aria-atomic="true"></p>
+      <div class="cart-content"></div>
+    </aside>
+
+    <dialog class="product-dialog" aria-label="Detalle del producto">
+      <button class="dialog-close icon-button" type="button" aria-label="Cerrar detalle">×</button>
+      <div class="dialog-product-image"></div>
+      <div class="dialog-product-copy"></div>
+    </dialog>
+  </body>
+</html>

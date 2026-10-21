@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0b0a" />
+    <meta name="description" content="ADARA PARFUM — vista previa de dirección visual. Datos e imagen de muestra." />
+    <title>ADARA PARFUM — Vista previa del concepto</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="preview.css" />
+    <script src="preview.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Ir al contenido</a>
+    <div class="preview-banner"><span>Vista previa de concepto</span><i></i><span>Nombres y precios de muestra · No son productos comerciales</span></div>
+    <header class="header" id="inicio">
+      <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav"> <span></span><span></span></button>
+      <nav class="nav" id="nav" aria-label="Navegación principal">
+        <a href="#coleccion">Colección</a><a href="#universo">Universo</a><a href="#contacto">Contacto</a>
+      </nav>
+      <a href="#inicio" class="wordmark" aria-label="ADARA PARFUM, inicio">ADARA<span>PARFUM</span></a>
+      <button class="bag-trigger" type="button" aria-label="Abrir bolsa de muestra" aria-haspopup="dialog">Bolsa <span class="bag-count">00</span></button>
+    </header>
+
+    <main id="contenido">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow hero-kicker"><span class="eyebrow-rule"></span>Dirección visual · Obsidiana y oro</p>
+          <h1 id="hero-title">Hay presencias<br />que saben <em>permanecer.</em></h1>
+          <p class="hero-lede">Una exploración visual de la fragancia como gesto personal: sereno, profundo, propio.</p>
+          <a class="hero-cta" href="#coleccion">Explorar la muestra <span aria-hidden="true">↘</span></a>
+          <p class="hero-note">Nombres, descripciones y precios presentados únicamente para esta demostración.</p>
+        </div>
+        <figure class="hero-photo">
+          <img src="https://images.unsplash.com/photo-1771762013405-ad64577dfc55?auto=format&amp;fit=crop&amp;w=1500&amp;q=82" alt="Fotografía de referencia de un frasco de perfume entre carbón oscuro y humo; no representa un envase ADARA." fetchpriority="high" />
+          <div class="photo-shade" aria-hidden="true"></div>
+          <figcaption class="photo-label"><span>Imagen de referencia · no es producto ADARA</span><a href="https://unsplash.com/photos/perfume-bottle-surrounded-by-dark-charcoal-and-smoke-PRzNMNj4Flk" target="_blank" rel="noreferrer">Foto: Ahmadreza Rezaie / Unsplash ↗</a></figcaption>
+          <span class="photo-index" aria-hidden="true">ESTUDIO DE IMAGEN <b>01 / 01</b></span>
+        </figure>
+        <div class="hero-side-index" aria-hidden="true"><span>ADARA PARFUM</span><i></i><span>COLECCIÓN DE MUESTRA</span></div>
+      </section>
+
+      <section class="interlude" id="universo" aria-label="Introducción al concepto">
+        <p class="eyebrow">Una firma, una sensación</p>
+        <p class="interlude-statement">La elegancia de lo <em>inolvidable.</em></p>
+        <p class="interlude-copy">El espacio, la luz y la materia hacen visible lo que una fragancia deja en la memoria.</p>
+      </section>
+
+      <section class="collection" id="coleccion" aria-labelledby="collection-title">
+        <div class="collection-head">
+          <div><p class="eyebrow">Muestra conceptual · Datos ficticios</p><h2 id="collection-title">Tres formas<br />de <em>presencia.</em></h2></div>
+          <p class="collection-intro">Los productos que siguen sirven para evaluar jerarquía, lectura y compra. No corresponden al catálogo de ADARA PARFUM.</p>
+        </div>
+        <div class="sample-products" id="sample-products"></div>
+      </section>
+
+      <section class="contact-note" id="contacto">
+        <p class="eyebrow">ADARA PARFUM · Vista previa</p>
+        <p>El universo visual comienza aquí.</p>
+        <span>Los canales oficiales se añadirán cuando estén disponibles.</span>
+      </section>
+    </main>
+
+    <footer class="footer"><a href="#inicio" class="wordmark footer-mark">ADARA<span>PARFUM</span></a><span>Concepto visual de muestra · No disponible para compra</span><a href="#inicio">Volver arriba ↑</a></footer>
+
+    <div class="drawer-backdrop" hidden></div>
+    <aside class="bag-drawer" role="dialog" aria-modal="true" aria-labelledby="bag-title" aria-hidden="true" inert>
+      <div class="drawer-top"><p class="eyebrow">Vista previa · No es un pedido</p><button class="drawer-close" type="button" aria-label="Cerrar bolsa">×</button></div>
+      <h2 id="bag-title">Tu bolsa <span class="bag-heading-count"></span></h2>
+      <p class="sr-only" id="bag-announcement" aria-live="polite" aria-atomic="true"></p>
+      <div class="bag-body"></div>
+    </aside>
+
+    <dialog class="product-dialog" aria-label="Detalle de producto de muestra">
+      <button class="product-dialog-close" type="button" aria-label="Cerrar detalle">×</button>
+      <div class="dialog-visual"></div><div class="dialog-copy"></div>
+    </dialog>
+  </body>
+</html>
