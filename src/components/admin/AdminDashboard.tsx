@@ -31,7 +31,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     SALES_PERIOD_DATA[selectedPeriod as keyof typeof SALES_PERIOD_DATA] ||
     SALES_PERIOD_DATA.month;
 
-  const lowStockProducts = products.filter((p) => p.stock <= p.threshold);
+  const lowStockProducts = products.filter((p) => p.stock <= (p.threshold ?? 3));
 
   // SVG Chart calculation helpers
   const chartHeight = 220;

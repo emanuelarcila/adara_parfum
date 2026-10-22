@@ -137,16 +137,31 @@ export const App: React.FC = () => {
 
   // Cart Handlers
   const handleAddToCart = (product: Product, quantity = 1) => {
+    // 1. Protección estricta contra productos sin precio válido
+    if (!product.priceCOP || product.priceCOP <= 0) {
+      showToast('warning', 'Producto bajo consulta', `${product.name} se encuentra en cotización y no admite compra directa.`);
+      return;
+    }
+
+    // 2. Protección estricta contra productos sin existencias o agotados
+    if (typeof product.stock === 'number' && product.stock <= 0) {
+      showToast('warning', 'Sin existencias', `${product.name} no cuenta con inventario disponible en este momento.`);
+      return;
+    }
+
+    const availableStock = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 99;
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
+        const nextQty = Math.min(existing.quantity + quantity, availableStock);
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: nextQty }
             : item
         );
       }
-      return [...prev, { product, quantity }];
+      return [...prev, { product, quantity: Math.min(quantity, availableStock) }];
     });
     showToast('success', 'Añadido a tu bolsa', `${product.name} (x${quantity}) agregado a la selección.`);
   };
@@ -156,7 +171,8 @@ export const App: React.FC = () => {
       prev
         .map((item) => {
           if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
+            const maxQty = typeof item.product.stock === 'number' && item.product.stock > 0 ? item.product.stock : 99;
+            const newQty = Math.min(item.quantity + delta, maxQty);
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
           return item;

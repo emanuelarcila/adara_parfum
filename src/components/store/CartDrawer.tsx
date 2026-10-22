@@ -36,13 +36,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const subtotal = items.reduce((acc, item) => acc + item.product.priceCOP * item.quantity, 0);
+  const hasUnpricedItems = items.some((item) => !item.product.priceCOP || item.product.priceCOP <= 0);
+  const hasOverstockItems = items.some(
+    (item) => typeof item.product.stock === 'number' && item.quantity > item.product.stock
+  );
+  const canCheckout = items.length > 0 && !hasUnpricedItems && !hasOverstockItems;
+
+  const subtotal = items.reduce(
+    (acc, item) => acc + (item.product.priceCOP && item.product.priceCOP > 0 ? item.product.priceCOP * item.quantity : 0),
+    0
+  );
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
 
-  // Generate WhatsApp order message
+  // Generate WhatsApp order message with verified price checks
   const handleWhatsAppCheckout = () => {
+    if (!canCheckout) return;
+
     const orderLines = items
-      .map((item) => `• ${item.product.name} (x${item.quantity}) - ${formatCOP(item.product.priceCOP * item.quantity)}`)
+      .map((item) => {
+        const lineTotal = item.product.priceCOP ? formatCOP(item.product.priceCOP * item.quantity) : 'Bajo consulta';
+        return `• ${item.product.name} (x${item.quantity}) - ${lineTotal}`;
+      })
       .join('%0A');
     const message = `Hola ADARA PARFUM, deseo coordinar mi pedido:%0A%0A${orderLines}%0A%0A*Total Estimado:* ${formatCOP(subtotal)}%0A%0A¿Tienen disponibilidad para despacho inmediato?`;
     window.open(`https://wa.me/573000000000?text=${message}`, '_blank');
@@ -194,61 +208,102 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     borderBottom: '1px solid rgba(56, 48, 36, 0.4)'
                   }}
                 >
-                  {/* Thumbnail */}
-                  <img
-                    src={item.product.image}
-                    alt={item.product.name}
+                  {/* Thumbnail & Fallback */}
+                  <div
                     style={{
                       width: '72px',
                       height: '84px',
-                      objectFit: 'cover',
                       borderRadius: '4px',
-                      backgroundColor: '#111'
+                      overflow: 'hidden',
+                      backgroundColor: '#141412',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
-                  />
+                  >
+                    {item.product.image ? (
+                      <img
+                        src={item.product.image}
+                        alt={item.product.name}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '4px' }}>
+                        <span style={{ fontSize: '9px', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                          ADARA
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Info */}
                   <div>
-                    <h4 style={{ fontSize: '16px', margin: 0, color: 'var(--color-ivory)' }}>
+                    <h4 style={{ fontSize: '15px', margin: 0, color: 'var(--color-ivory)' }}>
                       {item.product.name}
                     </h4>
                     <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                      {item.product.volume}
+                      {item.product.volume || item.product.brand || 'Colección ADARA'}
                     </span>
                     <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-gold)', margin: '4px 0 8px' }}>
-                      {formatCOP(item.product.priceCOP)}
+                      {item.product.priceCOP && item.product.priceCOP > 0 ? (
+                        formatCOP(item.product.priceCOP)
+                      ) : (
+                        <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
+                          Bajo consulta
+                        </span>
+                      )}
                     </p>
 
-                    {/* Stepper */}
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        backgroundColor: 'rgba(11, 11, 10, 0.6)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: '3px'
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onUpdateQuantity(item.product.id, -1)}
-                        style={{ background: 'none', border: 'none', color: 'var(--color-ivory)', padding: '4px 8px' }}
-                        aria-label="Restar una unidad"
-                      >
-                        <Minus size={11} />
-                      </button>
-                      <span style={{ fontSize: '12px', minWidth: '18px', textAlign: 'center', fontWeight: 600 }}>
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onUpdateQuantity(item.product.id, 1)}
-                        style={{ background: 'none', border: 'none', color: 'var(--color-ivory)', padding: '4px 8px' }}
-                        aria-label="Sumar una unidad"
-                      >
-                        <Plus size={11} />
-                      </button>
-                    </div>
+                    {/* Stepper with stock clamping */}
+                    {(() => {
+                      const maxStock = typeof item.product.stock === 'number' && item.product.stock > 0 ? item.product.stock : 99;
+                      return (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            backgroundColor: 'rgba(11, 11, 10, 0.6)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '3px'
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onUpdateQuantity(item.product.id, -1)}
+                            style={{ background: 'none', border: 'none', color: 'var(--color-ivory)', padding: '4px 8px', cursor: 'pointer' }}
+                            aria-label="Restar una unidad"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <span style={{ fontSize: '12px', minWidth: '18px', textAlign: 'center', fontWeight: 600 }}>
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={item.quantity >= maxStock}
+                            onClick={() => onUpdateQuantity(item.product.id, 1)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: item.quantity >= maxStock ? 'var(--color-text-tertiary)' : 'var(--color-ivory)',
+                              padding: '4px 8px',
+                              cursor: item.quantity >= maxStock ? 'not-allowed' : 'pointer'
+                            }}
+                            aria-label="Sumar una unidad"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Remove Button */}
@@ -259,7 +314,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       background: 'none',
                       border: 'none',
                       color: 'var(--color-text-tertiary)',
-                      padding: '8px'
+                      padding: '8px',
+                      cursor: 'pointer'
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-danger)')}
                     onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
@@ -284,23 +340,42 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               gap: '16px'
             }}
           >
+            {/* Warning if unpriced items exist */}
+            {hasUnpricedItems && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(217, 119, 6, 0.12)',
+                  border: '1px solid rgba(217, 119, 6, 0.3)',
+                  fontSize: '11px',
+                  color: '#fbbf24',
+                  lineHeight: 1.4
+                }}
+              >
+                Atención: Su bolsa contiene fragancias cuyo precio está <strong>bajo consulta</strong>. Retírelas para liquidar pedido directo.
+              </div>
+            )}
+
             {/* Free shipping banner */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(198, 161, 91, 0.1)',
-                border: '1px solid rgba(198, 161, 91, 0.25)',
-                fontSize: '11px',
-                color: 'var(--color-gold)'
-              }}
-            >
-              <ShieldCheck size={14} />
-              <span>Envío asegurado de cortesía en Colombia</span>
-            </div>
+            {!hasUnpricedItems && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(198, 161, 91, 0.1)',
+                  border: '1px solid rgba(198, 161, 91, 0.25)',
+                  fontSize: '11px',
+                  color: 'var(--color-gold)'
+                }}
+              >
+                <ShieldCheck size={14} />
+                <span>Envío asegurado de cortesía en Colombia</span>
+              </div>
+            )}
 
             {/* Subtotal & Total */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -315,8 +390,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             {/* WhatsApp Checkout Button */}
             <button
               type="button"
+              disabled={!canCheckout}
               onClick={handleWhatsAppCheckout}
-              data-cursor="PEDIDO"
+              data-cursor={canCheckout ? 'PEDIDO' : undefined}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -324,23 +400,34 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 justifyContent: 'center',
                 gap: '12px',
                 padding: '16px 24px',
-                backgroundColor: 'var(--color-gold)',
-                color: 'var(--color-obsidian)',
-                border: 'none',
+                backgroundColor: canCheckout ? 'var(--color-gold)' : 'rgba(255, 255, 255, 0.04)',
+                color: canCheckout ? 'var(--color-obsidian)' : 'var(--color-text-tertiary)',
+                border: canCheckout ? 'none' : '1px solid var(--color-border)',
                 borderRadius: '4px',
                 fontSize: '11px',
                 fontWeight: 700,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
+                cursor: canCheckout ? 'pointer' : 'not-allowed',
                 transition: 'all 0.3s ease',
-                boxShadow: '0 8px 24px rgba(198, 161, 91, 0.25)'
+                boxShadow: canCheckout ? '0 8px 24px rgba(198, 161, 91, 0.25)' : 'none'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-gold-light)')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-gold)')}
+              onMouseEnter={(e) => {
+                if (canCheckout) e.currentTarget.style.backgroundColor = 'var(--color-gold-light)';
+              }}
+              onMouseLeave={(e) => {
+                if (canCheckout) e.currentTarget.style.backgroundColor = 'var(--color-gold)';
+              }}
             >
               <MessageSquare size={16} />
-              <span>Coordinar Pedido por WhatsApp</span>
-              <ArrowRight size={15} />
+              <span>
+                {hasUnpricedItems
+                  ? 'Bolsa con productos bajo consulta'
+                  : hasOverstockItems
+                  ? 'Ajustar cantidades a stock'
+                  : 'Coordinar Pedido por WhatsApp'}
+              </span>
+              {canCheckout && <ArrowRight size={15} />}
             </button>
 
             <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textAlign: 'center', margin: 0 }}>

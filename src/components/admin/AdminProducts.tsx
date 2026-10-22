@@ -23,69 +23,81 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
 
   // Form state
   const [formName, setFormName] = useState('');
+  const [formBrand, setFormBrand] = useState('');
+  const [formVolume, setFormVolume] = useState('');
   const [formSubtitle, setFormSubtitle] = useState('');
-  const [formPrice, setFormPrice] = useState(480000);
-  const [formStock, setFormStock] = useState(10);
-  const [formThreshold, setFormThreshold] = useState(4);
+  const [formPrice, setFormPrice] = useState<number | ''>(0);
+  const [formStock, setFormStock] = useState<number>(0);
+  const [formThreshold, setFormThreshold] = useState<number>(3);
   const [formFamily, setFormFamily] = useState<OlfactiveFamily>('Oriental & Ámbar');
   const [formDesc, setFormDesc] = useState('');
   const [formTop, setFormTop] = useState('');
   const [formHeart, setFormHeart] = useState('');
   const [formBase, setFormBase] = useState('');
-  const [formImage, setFormImage] = useState('/images/oud_royal.jpg');
+  const [formImage, setFormImage] = useState('');
+  const [formIntensity, setFormIntensity] = useState<number | ''>('');
 
   const openCreateModal = () => {
     setEditingProduct(null);
     setFormName('');
-    setFormSubtitle('Extrait de Parfum · Edición Exclusiva');
-    setFormPrice(490000);
-    setFormStock(12);
-    setFormThreshold(4);
+    setFormBrand('');
+    setFormVolume('');
+    setFormSubtitle('');
+    setFormPrice('');
+    setFormStock(0);
+    setFormThreshold(3);
     setFormFamily('Oriental & Ámbar');
-    setFormDesc('Composición olfativa profunda con notas amaderadas y resinas sagradas.');
-    setFormTop('Azafrán, Bergamota');
-    setFormHeart('Oud, Cuero, Cedro');
-    setFormBase('Ámbar, Benjuí, Almizcle');
-    setFormImage('/images/oud_royal.jpg');
+    setFormDesc('');
+    setFormTop('');
+    setFormHeart('');
+    setFormBase('');
+    setFormImage('');
+    setFormIntensity('');
     setIsModalOpen(true);
   };
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
-    setFormName(p.name);
-    setFormSubtitle(p.subtitle);
-    setFormPrice(p.priceCOP);
-    setFormStock(p.stock);
-    setFormThreshold(p.threshold);
-    setFormFamily(p.family);
-    setFormDesc(p.description);
-    setFormTop(p.notesTop.join(', '));
-    setFormHeart(p.notesHeart.join(', '));
-    setFormBase(p.notesBase.join(', '));
-    setFormImage(p.image);
+    setFormName(p.name || '');
+    setFormBrand(p.brand || '');
+    setFormVolume(p.volume || '');
+    setFormSubtitle(p.subtitle || '');
+    setFormPrice(p.priceCOP !== null && p.priceCOP > 0 ? p.priceCOP : '');
+    setFormStock(p.stock ?? 0);
+    setFormThreshold(p.threshold ?? 3);
+    setFormFamily(p.family || 'Oriental & Ámbar');
+    setFormDesc(p.description || '');
+    setFormTop(p.notesTop ? p.notesTop.join(', ') : '');
+    setFormHeart(p.notesHeart ? p.notesHeart.join(', ') : '');
+    setFormBase(p.notesBase ? p.notesBase.join(', ') : '');
+    setFormImage(p.image || '');
+    setFormIntensity(p.intensity ?? '');
     setIsModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedPrice = formPrice !== '' && Number(formPrice) > 0 ? Number(formPrice) : null;
+    const parsedStock = Math.max(0, Number(formStock) || 0);
+
     const updated: Product = {
       id: editingProduct ? editingProduct.id : `adara-${Date.now()}`,
-      name: formName,
-      subtitle: formSubtitle,
-      brand: 'ADARA PARFUM',
-      volume: '100 ml / 3.4 FL.OZ.',
-      priceCOP: Number(formPrice),
-      stock: Number(formStock),
-      threshold: Number(formThreshold),
+      name: formName.trim(),
+      subtitle: formSubtitle.trim() ? formSubtitle.trim() : null,
+      brand: formBrand.trim() || (editingProduct ? editingProduct.brand : 'Sin marca asignada'),
+      volume: formVolume.trim() ? formVolume.trim() : null,
+      priceCOP: parsedPrice,
+      stock: parsedStock,
+      threshold: Number(formThreshold) || 3,
       family: formFamily,
       status: editingProduct ? editingProduct.status : 'active',
-      description: formDesc,
-      notesTop: formTop.split(',').map((s) => s.trim()).filter(Boolean),
-      notesHeart: formHeart.split(',').map((s) => s.trim()).filter(Boolean),
-      notesBase: formBase.split(',').map((s) => s.trim()).filter(Boolean),
-      image: formImage,
+      description: formDesc.trim() ? formDesc.trim() : null,
+      notesTop: formTop ? formTop.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      notesHeart: formHeart ? formHeart.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      notesBase: formBase ? formBase.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      image: formImage.trim() ? formImage.trim() : null,
       featured: editingProduct ? editingProduct.featured : false,
-      intensity: 4
+      intensity: formIntensity !== '' && Number(formIntensity) > 0 ? Number(formIntensity) : null
     };
 
     onSaveProduct(updated);
@@ -231,25 +243,47 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
           </thead>
           <tbody>
             {filtered.map((product) => {
-              const isLowStock = product.stock <= product.threshold;
+              const isLowStock = product.stock <= (product.threshold ?? 3);
               return (
                 <tr key={product.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.35)' }}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        style={{
-                          width: '44px',
-                          height: '52px',
-                          objectFit: 'cover',
-                          borderRadius: '4px',
-                          backgroundColor: '#111'
-                        }}
-                      />
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          style={{
+                            width: '44px',
+                            height: '52px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            backgroundColor: '#111'
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '44px',
+                            height: '52px',
+                            borderRadius: '4px',
+                            backgroundColor: '#161614',
+                            border: '1px solid rgba(198, 161, 91, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
+                        </div>
+                      )}
                       <div>
                         <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{product.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{product.volume}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
+                          {product.volume || (product.brand ? `Casa ${product.brand}` : 'Volumen pendiente')}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -257,7 +291,13 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
                     {product.family}
                   </td>
                   <td style={{ padding: '14px', fontWeight: 600, color: 'var(--color-gold)' }}>
-                    {formatCOP(product.priceCOP)}
+                    {product.priceCOP && product.priceCOP > 0 ? (
+                      formatCOP(product.priceCOP)
+                    ) : (
+                      <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
+                        Bajo consulta
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '14px' }}>
                     <span
@@ -407,54 +447,86 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
             </div>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Row 1: Name & Brand */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    Nombre del Perfume
+                    Nombre del Perfume *
                   </label>
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     required
+                    placeholder="Ej. 9 PM Pour Femme"
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
                   />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    Subtítulo / Edición
+                    Marca / Casa Perfumista
                   </label>
                   <input
                     type="text"
-                    value={formSubtitle}
-                    onChange={(e) => setFormSubtitle(e.target.value)}
-                    required
+                    value={formBrand}
+                    onChange={(e) => setFormBrand(e.target.value)}
+                    placeholder="Ej. Afnan, Armaf, ADARA..."
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              {/* Row 2: Presentation & Subtitle */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    Precio en COP
+                    Presentación / Volumen (Opcional)
                   </label>
                   <input
-                    type="number"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(Number(e.target.value))}
-                    required
+                    type="text"
+                    value={formVolume}
+                    onChange={(e) => setFormVolume(e.target.value)}
+                    placeholder="Ej. 100 ml, 80 ml, 50 ml"
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
                   />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    Stock Inicial
+                    Subtítulo / Edición (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formSubtitle}
+                    onChange={(e) => setFormSubtitle(e.target.value)}
+                    placeholder="Ej. Eau de Parfum · Edición Exclusiva"
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Commercial & Stock */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    Precio COP (0 = Bajo consulta)
+                  </label>
+                  <input
+                    type="number"
+                    value={formPrice}
+                    onChange={(e) => setFormPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="0 o vacío"
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    Stock Físico Inicial
                   </label>
                   <input
                     type="number"
                     value={formStock}
                     onChange={(e) => setFormStock(Number(e.target.value))}
+                    min={0}
                     required
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
                   />
@@ -467,27 +539,62 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
                     type="number"
                     value={formThreshold}
                     onChange={(e) => setFormThreshold(Number(e.target.value))}
+                    min={1}
                     required
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                  Familia Olfativa
-                </label>
-                <select
-                  value={formFamily}
-                  onChange={(e) => setFormFamily(e.target.value as OlfactiveFamily)}
-                  style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
-                >
-                  <option value="Oriental & Ámbar">Oriental & Ámbar</option>
-                  <option value="Cuero & Humo">Cuero & Humo</option>
-                  <option value="Floral Oscuro">Floral Oscuro</option>
-                  <option value="Amaderada">Amaderada</option>
-                  <option value="Cítrico Noble">Cítrico Noble</option>
-                </select>
+              {/* Row 4: Family & Intensity */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    Familia Olfativa
+                  </label>
+                  <select
+                    value={formFamily}
+                    onChange={(e) => setFormFamily(e.target.value as OlfactiveFamily)}
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
+                  >
+                    <option value="Oriental & Ámbar">Oriental & Ámbar</option>
+                    <option value="Cuero & Humo">Cuero & Humo</option>
+                    <option value="Floral Oscuro">Floral Oscuro</option>
+                    <option value="Amaderada">Amaderada</option>
+                    <option value="Cítrico Noble">Cítrico Noble</option>
+                    <option value="Ámbar Amaderada">Ámbar Amaderada</option>
+                    <option value="Ámbar Vainilla">Ámbar Vainilla</option>
+                    <option value="Amaderada Aromática">Amaderada Aromática</option>
+                    <option value="Ámbar Especiada">Ámbar Especiada</option>
+                    <option value="Floral Frutal">Floral Frutal</option>
+                    <option value="Chipre Frutal">Chipre Frutal</option>
+                    <option value="Ámbar Floral">Ámbar Floral</option>
+                    <option value="Aromática Frutal">Aromática Frutal</option>
+                    <option value="Aromática Acuática">Aromática Acuática</option>
+                    <option value="Amaderada Especiada">Amaderada Especiada</option>
+                    <option value="Oriental Floral">Oriental Floral</option>
+                    <option value="Floral Acuática">Floral Acuática</option>
+                    <option value="Cítrica Aromática">Cítrica Aromática</option>
+                    <option value="Aromática Fougère">Aromática Fougère</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    Intensidad (1-5)
+                  </label>
+                  <select
+                    value={formIntensity === '' ? '' : formIntensity}
+                    onChange={(e) => setFormIntensity(e.target.value === '' ? '' : Number(e.target.value))}
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px' }}
+                  >
+                    <option value="">Sin calificar</option>
+                    <option value="1">1 / 5 - Sutil</option>
+                    <option value="2">2 / 5 - Moderada</option>
+                    <option value="3">3 / 5 - Marcada</option>
+                    <option value="4">4 / 5 - Intensa</option>
+                    <option value="5">5 / 5 - Muy Intensa</option>
+                  </select>
+                </div>
               </div>
 
               <div>

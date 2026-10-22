@@ -3,26 +3,63 @@ export type OlfactiveFamily =
   | 'Oriental & Ámbar'
   | 'Cuero & Humo'
   | 'Floral Oscuro'
-  | 'Cítrico Noble';
+  | 'Cítrico Noble'
+  | 'Ámbar Amaderada'
+  | 'Ámbar Vainilla'
+  | 'Amaderada Aromática'
+  | 'Ámbar Especiada'
+  | 'Floral Frutal'
+  | 'Chipre Frutal'
+  | 'Ámbar Floral'
+  | 'Aromática Frutal'
+  | 'Aromática Acuática'
+  | 'Amaderada Especiada'
+  | 'Oriental Floral'
+  | 'Floral Acuática'
+  | 'Cítrica Aromática'
+  | 'Aromática Fougère'
+  | (string & {});
 
 export interface Product {
   id: string;
   name: string;
-  subtitle: string;
+  subtitle?: string | null;
   brand: string;
-  volume: string;
-  priceCOP: number;
+  volume?: string | null;
+  priceCOP: number | null;
   stock: number;
-  threshold: number;
+  threshold?: number;
   family: OlfactiveFamily;
-  status: 'active' | 'paused' | 'sold-out';
-  description: string;
-  notesTop: string[];
-  notesHeart: string[];
-  notesBase: string[];
-  image: string;
+  status: 'active' | 'paused' | 'sold-out' | 'draft';
+  description?: string | null;
+  notesTop?: string[];
+  notesHeart?: string[];
+  notesBase?: string[];
+  accords?: string[];
+  image?: string | null;
   featured: boolean;
-  intensity: number; // 1-5
+  intensity?: number | null; // 1-5
+}
+
+// Criterios de validación de precio e inventario para la tienda
+export function isPricedProduct(p: { priceCOP?: number | null } | null | undefined): boolean {
+  if (!p) return false;
+  return typeof p.priceCOP === 'number' && !isNaN(p.priceCOP) && p.priceCOP > 0;
+}
+
+export function isPurchasableProduct(
+  p: { status?: string; priceCOP?: number | null; stock?: number | null } | null | undefined
+): boolean {
+  if (!p) return false;
+  return (
+    p.status === 'active' &&
+    typeof p.priceCOP === 'number' &&
+    !isNaN(p.priceCOP) &&
+    p.priceCOP > 0 &&
+    typeof p.stock === 'number' &&
+    !isNaN(p.stock) &&
+    p.stock > 0
+  );
 }
 
 export interface CartItem {

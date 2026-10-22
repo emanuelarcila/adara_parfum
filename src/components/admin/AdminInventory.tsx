@@ -23,8 +23,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
   };
 
   const totalStockUnits = products.reduce((acc, p) => acc + p.stock, 0);
-  const criticalStockCount = products.filter((p) => p.stock <= p.threshold).length;
-  const totalStockValue = products.reduce((acc, p) => acc + p.stock * p.priceCOP, 0);
+  const criticalStockCount = products.filter((p) => p.stock <= (p.threshold || 3)).length;
+  const totalStockValue = products.reduce((acc, p) => acc + p.stock * (p.priceCOP || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -47,7 +47,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
           <div style={{ fontSize: '26px', fontWeight: 600, color: 'var(--color-ivory)', marginTop: '6px' }}>
             {totalStockUnits} frascos
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>6 referencias activas</span>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{products.length} referencias en catálogo</span>
         </div>
 
         <div className="liquid-glass-card" style={{ padding: '20px', borderRadius: '6px' }}>
@@ -93,20 +93,42 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
           </thead>
           <tbody>
             {products.map((p) => {
-              const isLow = p.stock <= p.threshold;
+              const isLow = p.stock <= (p.threshold ?? 3);
               const isZero = p.stock === 0;
               return (
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.35)' }}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <img
-                        src={p.image}
-                        alt={p.name}
-                        style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', backgroundColor: '#111' }}
-                      />
+                      {p.image ? (
+                        <img
+                          src={p.image}
+                          alt={p.name}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', backgroundColor: '#111' }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '48px',
+                            borderRadius: '4px',
+                            backgroundColor: '#161614',
+                            border: '1px solid rgba(198, 161, 91, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
+                        </div>
+                      )}
                       <div>
                         <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{p.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{p.family} · 100ml</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
+                          {p.family}{p.volume ? ` · ${p.volume}` : ''}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -114,7 +136,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                     {p.stock} uds
                   </td>
                   <td style={{ padding: '14px', color: 'var(--color-text-secondary)' }}>
-                    {p.threshold} uds mín.
+                    {p.threshold ?? 3} uds mín.
                   </td>
                   <td style={{ padding: '14px' }}>
                     <div
@@ -145,7 +167,13 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                     </div>
                   </td>
                   <td style={{ padding: '14px', color: 'var(--color-gold)', fontWeight: 600 }}>
-                    {formatCOP(p.stock * p.priceCOP)}
+                    {p.priceCOP && p.priceCOP > 0 ? (
+                      formatCOP(p.stock * p.priceCOP)
+                    ) : (
+                      <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
+                        Bajo consulta
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                     <button

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Product } from '../../types';
-import { formatCOP } from '../../data/mockData';
-import { X, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { Product, isPurchasableProduct, isPricedProduct } from '../../types';
+import { formatCOP, formatProductPrice } from '../../data/mockData';
+import { X, Plus, Minus, ShoppingBag, Sparkles } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -38,8 +38,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   if (!product) return null;
 
+  const isPriced = isPricedProduct(product);
+  const isAvailable = typeof product.stock === 'number' ? product.stock > 0 : false;
+  const canPurchase = isPurchasableProduct(product);
+  const maxStock = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 1;
+
   const handleAdd = () => {
-    onAddToCart(product, quantity);
+    if (!canPurchase) return;
+    onAddToCart(product, Math.min(quantity, maxStock));
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 1400);
   };
@@ -113,7 +119,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           }}
           className="modal-grid"
         >
-          {/* Left: Product Visual */}
+          {/* Left: Product Visual & Luxury Fallback */}
           <div
             style={{
               position: 'relative',
@@ -122,19 +128,67 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRight: '1px solid var(--color-border)'
+              borderRight: '1px solid var(--color-border)',
+              overflow: 'hidden'
             }}
           >
-            <img
-              src={product.image}
-              alt={product.name}
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fb = (e.currentTarget.parentElement as HTMLElement)?.querySelector('.modal-luxury-fallback');
+                  if (fb) (fb as HTMLElement).style.display = 'flex';
+                }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  maxHeight: '520px',
+                  objectFit: 'cover'
+                }}
+              />
+            ) : null}
+
+            {/* Fallback Monogram when no image or image load fails */}
+            <div
+              className="modal-luxury-fallback"
               style={{
-                width: '100%',
-                height: '100%',
-                maxHeight: '520px',
-                objectFit: 'cover'
+                display: product.image ? 'none' : 'flex',
+                position: 'absolute',
+                inset: 0,
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#121210',
+                backgroundImage: 'radial-gradient(circle at 50% 40%, rgba(198, 161, 91, 0.15) 0%, transparent 70%)',
+                padding: '32px',
+                textAlign: 'center'
               }}
-            />
+            >
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  border: '1px solid rgba(198, 161, 91, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '16px',
+                  backgroundColor: 'rgba(11, 11, 10, 0.7)'
+                }}
+              >
+                <Sparkles size={26} color="var(--color-gold)" />
+              </div>
+              <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--color-gold)', marginBottom: '6px' }}>
+                {product.brand || 'ADARA PARFUM'}
+              </span>
+              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-ivory)', maxWidth: '85%' }}>
+                {product.name}
+              </span>
+            </div>
+
             <div
               style={{
                 position: 'absolute',
@@ -151,27 +205,31 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 color: 'var(--color-gold)'
               }}
             >
-              ADARA STUDIO · 100 ML
+              {(product.brand || 'ADARA PARFUM').toUpperCase()}{product.volume ? ` · ${product.volume.toUpperCase()}` : ''}
             </div>
           </div>
 
           {/* Right: Olfactory Experience & Specs */}
           <div style={{ padding: '40px 36px', display: 'flex', flexDirection: 'column' }}>
-            <div className="eyebrow" style={{ marginBottom: '10px' }}>
-              {product.family}
-            </div>
+            {product.family && (
+              <div className="eyebrow" style={{ marginBottom: '10px' }}>
+                {product.family}
+              </div>
+            )}
             <h2 style={{ fontSize: '36px', lineHeight: 1.1, marginBottom: '6px' }}>
               {product.name}
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--color-gold)', fontStyle: 'italic', marginBottom: '20px' }}>
-              {product.subtitle}
+              {product.subtitle || (product.brand ? `Creación por la casa ${product.brand}` : 'Extracto de Alta Perfumería')}
             </p>
 
-            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.8, marginBottom: '28px' }}>
-              {product.description}
-            </p>
+            {product.description && (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.8, marginBottom: '28px' }}>
+                {product.description}
+              </p>
+            )}
 
-            {/* Olfactory Pyramid */}
+            {/* Olfactory Pyramid / Accords Section */}
             <div
               style={{
                 backgroundColor: 'rgba(11, 11, 10, 0.6)',
@@ -185,32 +243,67 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 Pirámide Olfativa
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
-                <div>
-                  <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
-                    Salida:
-                  </span>
-                  <span style={{ color: 'var(--color-ivory)' }}>
-                    {product.notesTop.join(' · ')}
-                  </span>
+              {(product.notesTop?.length || product.notesHeart?.length || product.notesBase?.length) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+                  {product.notesTop && product.notesTop.length > 0 && (
+                    <div>
+                      <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
+                        Salida:
+                      </span>
+                      <span style={{ color: 'var(--color-ivory)' }}>
+                        {product.notesTop.join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  {product.notesHeart && product.notesHeart.length > 0 && (
+                    <div>
+                      <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
+                        Corazón:
+                      </span>
+                      <span style={{ color: 'var(--color-ivory)' }}>
+                        {product.notesHeart.join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  {product.notesBase && product.notesBase.length > 0 && (
+                    <div>
+                      <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
+                        Fondo:
+                      </span>
+                      <span style={{ color: 'var(--color-gold-light)' }}>
+                        {product.notesBase.join(' · ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
+              ) : product.accords && product.accords.length > 0 ? (
                 <div>
-                  <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
-                    Corazón:
-                  </span>
-                  <span style={{ color: 'var(--color-ivory)' }}>
-                    {product.notesHeart.join(' · ')}
-                  </span>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', marginBottom: '8px' }}>
+                    Acordes Principales:
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {product.accords.map((accord, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: '11px',
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(198, 161, 91, 0.1)',
+                          color: 'var(--color-gold)',
+                          border: '1px solid rgba(198, 161, 91, 0.2)'
+                        }}
+                      >
+                        {accord}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 600, marginRight: '8px' }}>
-                    Fondo:
-                  </span>
-                  <span style={{ color: 'var(--color-gold-light)' }}>
-                    {product.notesBase.join(' · ')}
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', fontStyle: 'italic', margin: 0 }}>
+                  Composición y pirámide olfativa en proceso de catalogación oficial.
+                </p>
+              )}
             </div>
 
             {/* Price & Quantity Bar */}
@@ -230,29 +323,39 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-text-tertiary)' }}>
                   Total en COP
                 </span>
-                <p style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-ivory)', margin: 0 }}>
-                  {formatCOP(product.priceCOP * quantity)}
+                <p
+                  style={{
+                    fontSize: isPriced ? '24px' : '18px',
+                    fontWeight: 600,
+                    color: isPriced ? 'var(--color-ivory)' : 'var(--color-gold-light)',
+                    margin: 0
+                  }}
+                >
+                  {isPriced ? formatCOP((product.priceCOP as number) * quantity) : 'Bajo consulta'}
                 </p>
               </div>
 
-              {/* Quantity Stepper */}
+              {/* Quantity Stepper (Clamped to Available Stock) */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  backgroundColor: 'rgba(11, 11, 10, 0.8)',
+                  backgroundColor: canPurchase ? 'rgba(11, 11, 10, 0.8)' : 'rgba(255, 255, 255, 0.02)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: '4px'
+                  borderRadius: '4px',
+                  opacity: canPurchase ? 1 : 0.4
                 }}
               >
                 <button
                   type="button"
+                  disabled={!canPurchase || quantity <= 1}
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   style={{
                     background: 'none',
                     border: 'none',
                     color: 'var(--color-ivory)',
-                    padding: '8px 12px'
+                    padding: '8px 12px',
+                    cursor: canPurchase && quantity > 1 ? 'pointer' : 'not-allowed'
                   }}
                   aria-label="Disminuir cantidad"
                 >
@@ -263,12 +366,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setQuantity(quantity + 1)}
+                  disabled={!canPurchase || quantity >= maxStock}
+                  onClick={() => setQuantity(Math.min(maxStock, quantity + 1))}
                   style={{
                     background: 'none',
                     border: 'none',
                     color: 'var(--color-ivory)',
-                    padding: '8px 12px'
+                    padding: '8px 12px',
+                    cursor: canPurchase && quantity < maxStock ? 'pointer' : 'not-allowed'
                   }}
                   aria-label="Aumentar cantidad"
                 >
@@ -276,11 +381,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </button>
               </div>
 
-              {/* Add Button */}
+              {/* Add / Action Button */}
               <button
                 type="button"
+                disabled={!canPurchase}
                 onClick={handleAdd}
-                data-cursor="AÑADIR"
+                data-cursor={canPurchase ? 'AÑADIR' : undefined}
                 style={{
                   flex: 1,
                   display: 'inline-flex',
@@ -288,19 +394,32 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   justifyContent: 'center',
                   gap: '10px',
                   padding: '14px 24px',
-                  backgroundColor: addedAnimation ? 'var(--color-success)' : 'var(--color-gold)',
-                  color: 'var(--color-obsidian)',
-                  border: 'none',
+                  backgroundColor: canPurchase
+                    ? addedAnimation
+                      ? 'var(--color-success)'
+                      : 'var(--color-gold)'
+                    : 'rgba(255, 255, 255, 0.04)',
+                  color: canPurchase ? 'var(--color-obsidian)' : 'var(--color-text-tertiary)',
+                  border: canPurchase ? 'none' : '1px solid var(--color-border)',
                   borderRadius: '4px',
                   fontSize: '11px',
                   fontWeight: 700,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
+                  cursor: canPurchase ? 'pointer' : 'not-allowed',
                   transition: 'all 0.3s ease'
                 }}
               >
-                <ShoppingBag size={16} />
-                <span>{addedAnimation ? '¡Agregado a la bolsa!' : 'Añadir a la bolsa'}</span>
+                {canPurchase && <ShoppingBag size={16} />}
+                <span>
+                  {canPurchase
+                    ? addedAnimation
+                      ? '¡Agregado a la bolsa!'
+                      : 'Añadir a la bolsa'
+                    : !isPriced
+                    ? 'Precio Bajo Consulta'
+                    : 'Agotado'}
+                </span>
               </button>
             </div>
           </div>

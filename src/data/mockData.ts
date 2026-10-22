@@ -224,10 +224,20 @@ export const MONTHLY_SALES_CHART = [
   { month: 'Octubre (Actual)', current: 34500000, previous: 28900000 }
 ];
 
-export const formatCOP = (amount: number): string => {
+export const formatCOP = (amount: number | null | undefined): string => {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return '$ 0';
+  }
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     maximumFractionDigits: 0
   }).format(amount);
+};
+
+export const formatProductPrice = (price: number | null | undefined): string => {
+  if (price === null || price === undefined || isNaN(price) || price <= 0) {
+    return 'Bajo consulta';
+  }
+  return formatCOP(price);
 };

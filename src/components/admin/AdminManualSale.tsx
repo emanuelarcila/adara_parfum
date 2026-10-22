@@ -58,11 +58,12 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
     setLines(next);
   };
 
-  // Calculate Subtotal
+  // Calculate Subtotal safely
   const lineDetails = lines.map((line) => {
     const p = products.find((prod) => prod.id === line.productId) || products[0];
-    const subtotal = p ? p.priceCOP * line.quantity : 0;
-    return { ...line, product: p, subtotal };
+    const unitPrice = p && p.priceCOP ? p.priceCOP : 0;
+    const subtotal = unitPrice * line.quantity;
+    return { ...line, product: p, subtotal, unitPrice };
   });
 
   const grandTotal = lineDetails.reduce((acc, curr) => acc + curr.subtotal, 0);
@@ -82,9 +83,9 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
       channel,
       items: lineDetails.map((l) => ({
         productId: l.product.id,
-        productName: `${l.product.name} (100ml)`,
+        productName: `${l.product.name}${l.product.volume ? ` (${l.product.volume})` : ''}`,
         quantity: l.quantity,
-        unitPriceCOP: l.product.priceCOP
+        unitPriceCOP: l.unitPrice
       })),
       totalCOP: grandTotal,
       paymentStatus,
@@ -316,7 +317,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
                   >
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} · {p.volume} — ({formatCOP(p.priceCOP)})
+                        {p.name}{p.volume ? ` · ${p.volume}` : ''} — ({p.priceCOP && p.priceCOP > 0 ? formatCOP(p.priceCOP) : 'Bajo consulta'})
                       </option>
                     ))}
                   </select>
