@@ -138,6 +138,7 @@ export const INITIAL_ORDERS: Order[] = [
     totalCOP: 540000,
     paymentStatus: 'paid',
     orderStatus: 'preparing',
+    inventoryDeducted: true,
     notes: 'Empaque de lujo para regalo con sello de lacre dorado.'
   },
   {
@@ -155,6 +156,7 @@ export const INITIAL_ORDERS: Order[] = [
     totalCOP: 950000,
     paymentStatus: 'paid',
     orderStatus: 'shipped',
+    inventoryDeducted: true,
     notes: 'Transferencia Bancolombia verificada.'
   },
   {
@@ -170,7 +172,8 @@ export const INITIAL_ORDERS: Order[] = [
     ],
     totalCOP: 950000,
     paymentStatus: 'paid',
-    orderStatus: 'delivered'
+    orderStatus: 'delivered',
+    inventoryDeducted: true
   },
   {
     id: 'ord-004',
@@ -187,6 +190,7 @@ export const INITIAL_ORDERS: Order[] = [
     totalCOP: 2640000,
     paymentStatus: 'paid',
     orderStatus: 'shipped',
+    inventoryDeducted: true,
     notes: 'Venta corporativa boutique aliada.'
   },
   {
@@ -203,6 +207,7 @@ export const INITIAL_ORDERS: Order[] = [
     totalCOP: 460000,
     paymentStatus: 'on_delivery',
     orderStatus: 'pending',
+    inventoryDeducted: false,
     notes: 'Pago contra entrega confirmado por chat.'
   }
 ];

@@ -72,6 +72,14 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
     e.preventDefault();
     if (!customerName.trim() || lines.length === 0) return;
 
+    // Validar existencias físicas disponibles antes de crear la orden
+    for (const l of lineDetails) {
+      if (typeof l.product.stock === 'number' && l.quantity > l.product.stock) {
+        alert(`Stock insuficiente para '${l.product.name}'. Disponibles en taller: ${l.product.stock}, solicitadas: ${l.quantity}.`);
+        return;
+      }
+    }
+
     const orderReference = `AD-2026-${Math.floor(100 + Math.random() * 900)}`;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
@@ -90,6 +98,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
       totalCOP: grandTotal,
       paymentStatus,
       orderStatus: 'preparing',
+      inventoryDeducted: true,
       notes: notes ? `${notes} · Método: ${paymentMethod}` : `Método: ${paymentMethod}`
     };
 
@@ -317,7 +326,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
                   >
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}{p.volume ? ` · ${p.volume}` : ''} — ({p.priceCOP && p.priceCOP > 0 ? formatCOP(p.priceCOP) : 'Bajo consulta'})
+                        {p.name}{p.volume ? ` · ${p.volume}` : ''} — {p.priceCOP && p.priceCOP > 0 ? formatCOP(p.priceCOP) : 'Bajo consulta'} · (Stock: {p.stock} uds)
                       </option>
                     ))}
                   </select>

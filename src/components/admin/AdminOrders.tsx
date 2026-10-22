@@ -333,25 +333,57 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </div>
 
               {/* Status Changers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', paddingTop: '10px', borderTop: '1px solid var(--color-border)' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    Estado de Entrega
-                  </label>
-                  <select
-                    value={selectedOrder.orderStatus}
-                    onChange={(e) => {
-                      onUpdateOrderStatus(selectedOrder.id, e.target.value as OrderStatus);
-                      setSelectedOrder({ ...selectedOrder, orderStatus: e.target.value as OrderStatus });
-                    }}
-                    style={{ width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
-                  >
-                    <option value="pending">Preparación</option>
-                    <option value="shipped">En camino / Enviado</option>
-                    <option value="delivered">Entregado</option>
-                    <option value="cancelled">Cancelado</option>
-                  </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '10px', borderTop: '1px solid var(--color-border)' }}>
+                {/* Inventory Status Indicator */}
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--color-border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '11px'
+                  }}
+                >
+                  <span style={{ color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Inventario Físico:
+                  </span>
+                  {selectedOrder.orderStatus === 'cancelled' ? (
+                    <span style={{ color: 'var(--color-danger)', fontWeight: 600 }}>● Cancelado (Sin stock comprometido)</span>
+                  ) : selectedOrder.inventoryDeducted ? (
+                    <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>● Descontado y reservado en taller</span>
+                  ) : (
+                    <span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>● Pendiente (Stock sin descontar)</span>
+                  )}
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                      Estado de Entrega
+                    </label>
+                    <select
+                      value={selectedOrder.orderStatus}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as OrderStatus;
+                        onUpdateOrderStatus(selectedOrder.id, newStatus);
+                        setSelectedOrder({
+                          ...selectedOrder,
+                          orderStatus: newStatus,
+                          inventoryDeducted: newStatus === 'cancelled' ? false : (selectedOrder.inventoryDeducted || newStatus !== 'pending')
+                        });
+                      }}
+                      style={{ width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                    >
+                      <option value="pending">Pendiente (Por confirmar)</option>
+                      <option value="preparing">Preparación (Reserva stock)</option>
+                      <option value="shipped">En camino / Enviado</option>
+                      <option value="delivered">Entregado</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                  </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
@@ -371,8 +403,9 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                   </select>
                 </div>
               </div>
+            </div>
 
-              {/* Total COP */}
+            {/* Total COP */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
                 <span style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Total Liquidado</span>
                 <span style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-ivory)' }}>{formatCOP(selectedOrder.totalCOP)}</span>

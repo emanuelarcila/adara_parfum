@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { CartItem } from '../../types';
+import { CartItem, Order } from '../../types';
 import { formatCOP } from '../../data/mockData';
+import { createWhatsAppOrder } from '../../services/orderInventoryService';
 import { X, Plus, Minus, Trash2, ArrowRight, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface CartDrawerProps {
@@ -10,6 +11,7 @@ interface CartDrawerProps {
   onUpdateQuantity: (productId: string, delta: number) => void;
   onRemoveItem: (productId: string) => void;
   onClearCart: () => void;
+  onInitiateWhatsAppOrder?: (order: Order) => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -18,7 +20,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   items,
   onUpdateQuantity,
   onRemoveItem,
-  onClearCart
+  onClearCart,
+  onInitiateWhatsAppOrder
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,9 +51,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   );
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
 
-  // Generate WhatsApp order message with verified price checks
+  // Generate WhatsApp order message with verified price checks & register pending order safely
   const handleWhatsAppCheckout = () => {
     if (!canCheckout) return;
+
+    // Registrar pedido en cola administrativa en estado pending SIN descontar stock
+    const waRes = createWhatsAppOrder(items);
+    if (waRes.success && waRes.order && onInitiateWhatsAppOrder) {
+      onInitiateWhatsAppOrder(waRes.order);
+    }
 
     const orderLines = items
       .map((item) => {

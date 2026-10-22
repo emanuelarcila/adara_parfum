@@ -20,6 +20,18 @@ export type OlfactiveFamily =
   | 'Aromática Fougère'
   | (string & {});
 
+export type ProductVolume = '30ml' | '50ml' | '100ml' | (string & {});
+
+export interface ProductVariantItem {
+  id: string; // ej. 'adh-120-30ml'
+  volume: ProductVolume;
+  sku?: string;
+  priceCOP: number | null;
+  stock: number;
+  threshold?: number;
+  status: 'active' | 'paused' | 'sold-out';
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -39,6 +51,7 @@ export interface Product {
   image?: string | null;
   featured: boolean;
   intensity?: number | null; // 1-5
+  variants?: ProductVariantItem[]; // Preparación Fase 2.4A: variantes independientes por tamaño
 }
 
 // Criterios de validación de precio e inventario para la tienda
@@ -73,6 +86,8 @@ export type SalesChannel = 'Tienda Web' | 'WhatsApp' | 'Boutique Bogotá' | 'Dis
 
 export interface OrderItem {
   productId: string;
+  variantId?: string; // ID de presentación (30ml, 50ml, 100ml) si aplica
+  volume?: string;
   productName: string;
   quantity: number;
   unitPriceCOP: number;
@@ -91,6 +106,7 @@ export interface Order {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   notes?: string;
+  inventoryDeducted?: boolean; // Trazabilidad Fase 2.4A: true si el stock ya fue descontado del inventario
 }
 
 export type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';

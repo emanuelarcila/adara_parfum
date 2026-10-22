@@ -44,6 +44,11 @@ const AdminReports = React.lazy(() =>
 
 // Firebase Auth Service & Authorization
 import { subscribeToAuth, logoutUser, isUserAdmin, type User } from './lib/firebase';
+import {
+  registerManualSale,
+  transitionOrderStatus,
+  adjustManualStock
+} from './services/orderInventoryService';
 
 export const App: React.FC = () => {
   // Navigation & View state
@@ -249,26 +254,44 @@ export const App: React.FC = () => {
     showToast('warning', 'Fragancia eliminada del catálogo');
   };
 
-  // Stock Adjustment Handler
+  // Stock Adjustment Handler (Centralizado vía orderInventoryService)
   const handleAdjustStock = (productId: string, delta: number, reason: string) => {
-    setProducts((prev) =>
-      prev.map((p) => {
-        if (p.id === productId) {
-          const newStock = Math.max(0, p.stock + delta);
-          return { ...p, stock: newStock };
-        }
-        return p;
-      })
-    );
+    const res = adjustManualStock(products, productId, delta, reason, currentUser?.uid || 'admin-local');
+    if (!res.success) {
+      showToast('warning', 'Error en inventario', res.error || 'No fue posible aplicar el ajuste.');
+      return;
+    }
+    setProducts(res.updatedProducts);
     showToast('success', 'Inventario actualizado', `Movimiento registrado: ${reason}`);
   };
 
-  // Order Handlers
+  // Order Handlers con Integridad de Inventario (Fase 2.4A)
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
+    const orderToUpdate = orders.find((ord) => ord.id === orderId);
+    if (!orderToUpdate) return;
+
+    const res = transitionOrderStatus(products, orderToUpdate, status, currentUser?.uid || 'admin-local');
+    if (!res.success) {
+      showToast('warning', 'Error en pedido', res.error || 'No fue posible actualizar el estado.');
+      return;
+    }
+
+    setProducts(res.updatedProducts);
     setOrders((prev) =>
-      prev.map((ord) => (ord.id === orderId ? { ...ord, orderStatus: status } : ord))
+      prev.map((ord) => (ord.id === orderId ? (res.updatedOrder || { ...ord, orderStatus: status }) : ord))
     );
-    showToast('success', 'Estado de orden actualizado');
+
+    if (status === 'cancelled') {
+      if (res.movements.length > 0) {
+        showToast('warning', 'Pedido cancelado', 'Se restituyó el inventario al catálogo.');
+      } else {
+        showToast('info', 'Pedido cancelado', 'Orden cancelada (sin movimiento de stock previo).');
+      }
+    } else if (res.movements.length > 0) {
+      showToast('success', 'Pedido confirmado', 'Inventario descontado y reservado.');
+    } else {
+      showToast('success', 'Estado de orden actualizado');
+    }
   };
 
   const handleUpdatePaymentStatus = (orderId: string, status: PaymentStatus) => {
@@ -278,26 +301,31 @@ export const App: React.FC = () => {
     showToast('success', 'Estado de pago actualizado');
   };
 
-  // Manual Sale Completion Handler
+  // Manual Sale Completion Handler (Centralizado con validación y descuento único)
   const handleCompleteManualSale = (newOrder: Order) => {
-    // 1. Add order
-    setOrders((prev) => [newOrder, ...prev]);
+    const res = registerManualSale(products, newOrder, currentUser?.uid || 'admin-local');
+    if (!res.success) {
+      showToast('warning', 'Venta rechazada', res.error || 'Stock insuficiente para completar la venta.');
+      return;
+    }
 
-    // 2. Decrement inventory
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const itemSold = newOrder.items.find((i) => i.productId === prod.id);
-        if (itemSold) {
-          return { ...prod, stock: Math.max(0, prod.stock - itemSold.quantity) };
-        }
-        return prod;
-      })
-    );
+    setOrders((prev) => [res.updatedOrder || newOrder, ...prev]);
+    setProducts(res.updatedProducts);
 
     showToast(
       'success',
       'Venta Manual Confirmada',
       `Orden ${newOrder.reference} registrada para ${newOrder.customerName}.`
+    );
+  };
+
+  // Handler para pedidos iniciados desde WhatsApp en la tienda web
+  const handleInitiateWhatsAppOrder = (newOrder: Order) => {
+    setOrders((prev) => [newOrder, ...prev]);
+    showToast(
+      'info',
+      'Pedido WhatsApp Registrado',
+      `Referencia ${newOrder.reference} registrada en cola de atención.`
     );
   };
 
@@ -370,6 +398,7 @@ export const App: React.FC = () => {
             onUpdateQuantity={handleUpdateCartQuantity}
             onRemoveItem={handleRemoveFromCart}
             onClearCart={handleClearCart}
+            onInitiateWhatsAppOrder={handleInitiateWhatsAppOrder}
           />
         </main>
       ) : (
