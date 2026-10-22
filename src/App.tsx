@@ -448,6 +448,8 @@ export const App: React.FC = () => {
             onSwitchToStore={() => setCurrentView('store')}
             onLogout={handleLogout}
             adminEmail={currentUser?.email}
+            products={products}
+            orders={orders}
           >
             {adminTab === 'dashboard' && (
               <AdminDashboard

@@ -12,7 +12,8 @@ import {
   ChevronRight,
   LogOut
 } from 'lucide-react';
-import { DateRange } from '../../types';
+import { DateRange, Product, Order } from '../../types';
+import { AdminNotificationsCenter } from './AdminNotificationsCenter';
 
 export type AdminTab =
   | 'dashboard'
@@ -30,6 +31,8 @@ interface AdminLayoutProps {
   onSwitchToStore: () => void;
   onLogout?: () => void;
   adminEmail?: string | null;
+  products?: Product[];
+  orders?: Order[];
   children: React.ReactNode;
 }
 
@@ -41,6 +44,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onSwitchToStore,
   onLogout,
   adminEmail,
+  products,
+  orders,
   children
 }) => {
   const menuItems = [
@@ -404,34 +409,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               })}
             </div>
 
-            {/* Notification Badge */}
-            <div
-              style={{
-                position: 'relative',
-                padding: '8px',
-                borderRadius: '6px',
-                border: '1px solid var(--color-border)',
-                backgroundColor: 'rgba(23, 23, 20, 0.6)',
-                color: 'var(--color-ivory)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Notificaciones operativas"
-            >
-              <Bell size={16} />
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--color-gold)'
-                }}
-              />
-            </div>
+            {/* Notification Center */}
+            <AdminNotificationsCenter
+              products={products || []}
+              orders={orders || []}
+              onNavigateTab={onTabChange}
+            />
 
             {/* Fast Sale CTA */}
             {currentTab !== 'manual-sale' && (
