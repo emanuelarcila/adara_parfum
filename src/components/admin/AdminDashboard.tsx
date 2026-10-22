@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DateRange, Order, Product } from '../../types';
-import { SALES_PERIOD_DATA, MONTHLY_SALES_CHART, formatCOP } from '../../data/mockData';
+import { formatCOP } from '../../data/mockData';
+import { calculateDashboardMetrics } from '../../services/commercialAnalyticsService';
 import {
   TrendingUp,
   ShoppingBag,
@@ -8,7 +9,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ChevronRight,
-  ShieldAlert
+  ShieldCheck
 } from 'lucide-react';
 import { AdminTab } from './AdminLayout';
 
@@ -27,25 +28,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
 
-  const periodStats =
-    SALES_PERIOD_DATA[selectedPeriod as keyof typeof SALES_PERIOD_DATA] ||
-    SALES_PERIOD_DATA.month;
-
+  // Métricas dinámicas calculadas en tiempo real para el periodo seleccionado
+  const metrics = calculateDashboardMetrics(orders, selectedPeriod);
   const lowStockProducts = products.filter((p) => p.stock <= (p.threshold ?? 3));
 
-  // SVG Chart calculation helpers
+  // Preparación de datos de tendencia mensual dinámica
   const chartHeight = 220;
   const chartWidth = 680;
-  const maxSales = 40000000;
+  const monthlyData = metrics.monthlyTrend;
 
-  const pointsCurrent = MONTHLY_SALES_CHART.map((d, i) => {
-    const x = (i / (MONTHLY_SALES_CHART.length - 1)) * (chartWidth - 80) + 40;
+  const maxCurrent = Math.max(0, ...monthlyData.map((d) => d.current));
+  const maxPrevious = Math.max(0, ...monthlyData.map((d) => d.previous));
+  const dataMax = Math.max(maxCurrent, maxPrevious);
+  const maxSales = Math.max(40000000, Math.ceil(dataMax / 10000000) * 10000000);
+
+  const pointsCurrent = monthlyData.map((d, i) => {
+    const x = (i / (monthlyData.length - 1)) * (chartWidth - 80) + 40;
     const y = chartHeight - (d.current / maxSales) * (chartHeight - 40) - 20;
     return { x, y, data: d };
   });
 
-  const pointsPrevious = MONTHLY_SALES_CHART.map((d, i) => {
-    const x = (i / (MONTHLY_SALES_CHART.length - 1)) * (chartWidth - 80) + 40;
+  const pointsPrevious = monthlyData.map((d, i) => {
+    const x = (i / (monthlyData.length - 1)) * (chartWidth - 80) + 40;
     const y = chartHeight - (d.previous / maxSales) * (chartHeight - 40) - 20;
     return { x, y, data: d };
   });
@@ -61,7 +65,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Top Demo Banner */}
+      {/* Top Status Banner */}
       <div
         style={{
           display: 'flex',
@@ -76,9 +80,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ShieldAlert size={16} />
+          <ShieldCheck size={16} />
           <span>
-            <strong>Modo Demostración Activo:</strong> Las métricas y órdenes reflejan datos de prueba para evaluación de experiencia administrativa.
+            <strong>Panel Operativo ADARA:</strong> Métricas en tiempo real calculadas según los pedidos registrados y el periodo {metrics.interval.label}.
           </span>
         </div>
         <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
@@ -108,10 +112,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '26px', fontWeight: 600, color: 'var(--color-ivory)', marginBottom: '8px' }}>
-            {formatCOP(periodStats.totalCOP)}
+            {formatCOP(metrics.confirmedSales.totalCOP)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
-            <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>{periodStats.comparison}</span>
+            <span
+              style={{
+                color: metrics.comparison.isPositive ? 'var(--color-success)' : 'var(--color-danger)',
+                fontWeight: 700
+              }}
+            >
+              {metrics.comparison.comparisonLabel}
+            </span>
             <span style={{ color: 'var(--color-text-tertiary)' }}>vs período anterior</span>
           </div>
         </div>
@@ -130,14 +141,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '26px', fontWeight: 600, color: 'var(--color-ivory)', marginBottom: '8px' }}>
-            {periodStats.ordersCount} pedidos
+            {metrics.ordersReceived.total} {metrics.ordersReceived.total === 1 ? 'pedido' : 'pedidos'}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            Ticket promedio: {formatCOP(Math.round(periodStats.totalCOP / periodStats.ordersCount))}
+            Ticket promedio: {formatCOP(metrics.averageTicketCOP)}
+            {metrics.ordersReceived.cancelled > 0 && (
+              <span style={{ color: 'var(--color-danger)', marginLeft: '6px' }}>
+                ({metrics.ordersReceived.cancelled} cancelado{metrics.ordersReceived.cancelled > 1 ? 's' : ''})
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Card 3: Unidades Vendidas */}
+        {/* Card 3: Frascos Despachados */}
         <div
           className="liquid-glass-card"
           style={{ padding: '22px', borderRadius: '6px' }}
@@ -151,10 +167,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '26px', fontWeight: 600, color: 'var(--color-ivory)', marginBottom: '8px' }}>
-            {periodStats.unitsSold} uds
+            {metrics.units.dispatched} uds
           </div>
           <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            Extractos de 100 ml
+            {metrics.units.sold} vendidos ({metrics.units.inPreparation} en preparación)
           </div>
         </div>
 
@@ -190,7 +206,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               fontWeight: 600,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '4px',
+              cursor: 'pointer'
             }}
           >
             <span>Ver inventario crítico</span>
@@ -225,11 +242,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '11px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--color-gold)' }} />
-                <span style={{ color: 'var(--color-ivory)' }}>2026 (Actual)</span>
+                <span style={{ color: 'var(--color-ivory)' }}>Actual</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--color-border)' }} />
-                <span style={{ color: 'var(--color-text-secondary)' }}>2025 (Anterior)</span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Año Previo</span>
               </div>
             </div>
           </div>
@@ -327,7 +344,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           {/* Tooltip info when hovering month */}
-          {hoveredMonth !== null && (
+          {hoveredMonth !== null && monthlyData[hoveredMonth] && (
             <div
               style={{
                 marginTop: '12px',
@@ -340,12 +357,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 fontSize: '12px'
               }}
             >
-              <span>{MONTHLY_SALES_CHART[hoveredMonth].month}</span>
+              <span>{monthlyData[hoveredMonth].month}</span>
               <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>
-                Actual: {formatCOP(MONTHLY_SALES_CHART[hoveredMonth].current)}
+                Actual: {formatCOP(monthlyData[hoveredMonth].current)} ({monthlyData[hoveredMonth].unitsSold} uds)
               </span>
               <span style={{ color: 'var(--color-text-secondary)' }}>
-                Previo: {formatCOP(MONTHLY_SALES_CHART[hoveredMonth].previous)}
+                Previo: {formatCOP(monthlyData[hoveredMonth].previous)}
               </span>
             </div>
           )}
@@ -360,41 +377,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             Fragancias Más Vendidas
           </h3>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 24px' }}>
-            Participación sobre ingresos totales
+            Participación sobre ingresos en {metrics.interval.label}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
-            {[
-              { name: 'Oud Royal', percent: 42, revenue: 14490000 },
-              { name: 'Rose Noire', percent: 28, revenue: 9660000 },
-              { name: 'Ambre Impérial', percent: 18, revenue: 6210000 },
-              { name: 'Santal Blanc', percent: 12, revenue: 4140000 }
-            ].map((frag, idx) => (
-              <div key={idx}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{frag.name}</span>
-                  <span style={{ color: 'var(--color-gold)' }}>{formatCOP(frag.revenue)} ({frag.percent}%)</span>
-                </div>
-                <div
-                  style={{
-                    height: '6px',
-                    width: '100%',
-                    backgroundColor: 'rgba(56, 48, 36, 0.4)',
-                    borderRadius: '3px',
-                    overflow: 'hidden'
-                  }}
-                >
+            {metrics.topFragrances.length === 0 ? (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '32px 16px',
+                  color: 'var(--color-text-tertiary)',
+                  fontSize: '12px',
+                  textAlign: 'center'
+                }}
+              >
+                No se registran ventas de fragancias para este periodo.
+              </div>
+            ) : (
+              metrics.topFragrances.map((frag, idx) => (
+                <div key={frag.productId || idx}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>
+                      {frag.productName} ({frag.unitsSold} {frag.unitsSold === 1 ? 'ud' : 'uds'})
+                    </span>
+                    <span style={{ color: 'var(--color-gold)' }}>
+                      {formatCOP(frag.revenueCOP)} ({frag.percentOfRevenue}%)
+                    </span>
+                  </div>
                   <div
                     style={{
-                      height: '100%',
-                      width: `${frag.percent}%`,
-                      backgroundColor: idx === 0 ? 'var(--color-gold)' : idx === 1 ? 'var(--color-gold-deep)' : 'var(--color-border)',
-                      borderRadius: '3px'
+                      height: '6px',
+                      width: '100%',
+                      backgroundColor: 'rgba(56, 48, 36, 0.4)',
+                      borderRadius: '3px',
+                      overflow: 'hidden'
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${Math.min(100, Math.max(2, frag.percentOfRevenue))}%`,
+                        backgroundColor:
+                          idx === 0
+                            ? 'var(--color-gold)'
+                            : idx === 1
+                            ? 'var(--color-gold-deep)'
+                            : 'var(--color-border)',
+                        borderRadius: '3px',
+                        transition: 'width 0.4s ease'
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -448,56 +487,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </tr>
             </thead>
             <tbody>
-              {orders.slice(0, 4).map((ord) => (
-                <tr key={ord.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.4)' }}>
-                  <td style={{ padding: '14px', fontFamily: 'monospace', color: 'var(--color-gold)', fontWeight: 600 }}>
-                    {ord.reference}
-                  </td>
-                  <td style={{ padding: '14px' }}>
-                    <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{ord.customerName}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{ord.customerCity}</div>
-                  </td>
-                  <td style={{ padding: '14px', color: 'var(--color-text-secondary)' }}>
-                    {ord.channel}
-                  </td>
-                  <td style={{ padding: '14px', color: 'var(--color-ivory)' }}>
-                    {ord.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
-                  </td>
-                  <td style={{ padding: '14px', fontWeight: 600, color: 'var(--color-ivory)' }}>
-                    {formatCOP(ord.totalCOP)}
-                  </td>
-                  <td style={{ padding: '14px' }}>
-                    <span
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        backgroundColor:
-                          ord.orderStatus === 'delivered'
-                            ? 'rgba(74, 222, 128, 0.15)'
-                            : ord.orderStatus === 'shipped'
-                            ? 'rgba(96, 165, 250, 0.15)'
-                            : 'rgba(251, 191, 36, 0.15)',
-                        color:
-                          ord.orderStatus === 'delivered'
-                            ? 'var(--color-success)'
-                            : ord.orderStatus === 'shipped'
-                            ? 'var(--color-info)'
-                            : 'var(--color-warning)'
-                      }}
-                    >
-                      {ord.orderStatus === 'delivered'
-                        ? 'Entregado'
-                        : ord.orderStatus === 'shipped'
-                        ? 'En camino'
-                        : 'Preparación'}
-                    </span>
+              {orders.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    style={{
+                      padding: '32px 14px',
+                      textAlign: 'center',
+                      color: 'var(--color-text-tertiary)',
+                      fontSize: '12px'
+                    }}
+                  >
+                    No se encuentran pedidos registrados en el sistema.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                orders.slice(0, 4).map((ord) => {
+                  const getStatusBadge = (status: string) => {
+                    switch (status) {
+                      case 'delivered':
+                        return { label: 'Entregado', bg: 'rgba(74, 222, 128, 0.15)', color: 'var(--color-success)' };
+                      case 'shipped':
+                        return { label: 'En camino', bg: 'rgba(96, 165, 250, 0.15)', color: 'var(--color-info)' };
+                      case 'preparing':
+                        return { label: 'Preparación', bg: 'rgba(251, 191, 36, 0.15)', color: 'var(--color-warning)' };
+                      case 'cancelled':
+                        return { label: 'Cancelado', bg: 'rgba(239, 68, 68, 0.15)', color: 'var(--color-danger)' };
+                      default:
+                        return { label: 'Pendiente', bg: 'rgba(212, 175, 55, 0.15)', color: 'var(--color-gold)' };
+                    }
+                  };
+                  const badge = getStatusBadge(ord.orderStatus);
+
+                  return (
+                    <tr key={ord.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.4)' }}>
+                      <td style={{ padding: '14px', fontFamily: 'monospace', color: 'var(--color-gold)', fontWeight: 600 }}>
+                        {ord.reference}
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{ord.customerName}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{ord.customerCity}</div>
+                      </td>
+                      <td style={{ padding: '14px', color: 'var(--color-text-secondary)' }}>
+                        {ord.channel}
+                      </td>
+                      <td style={{ padding: '14px', color: 'var(--color-ivory)' }}>
+                        {ord.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
+                      </td>
+                      <td style={{ padding: '14px', fontWeight: 600, color: 'var(--color-ivory)' }}>
+                        {formatCOP(ord.totalCOP)}
+                      </td>
+                      <td style={{ padding: '14px' }}>
+                        <span
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                            backgroundColor: badge.bg,
+                            color: badge.color
+                          }}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

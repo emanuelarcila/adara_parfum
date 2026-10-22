@@ -461,7 +461,11 @@ export const App: React.FC = () => {
             )}
 
             {adminTab === 'reports' && (
-              <AdminReports selectedPeriod={selectedPeriod} />
+              <AdminReports
+                selectedPeriod={selectedPeriod}
+                orders={orders}
+                products={products}
+              />
             )}
           </AdminLayout>
         </React.Suspense>
