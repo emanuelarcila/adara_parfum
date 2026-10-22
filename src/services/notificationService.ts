@@ -12,6 +12,10 @@
  */
 
 import { Product, Order } from '../types';
+import { parseOrderTimestamp } from './commercialAnalyticsService';
+
+/** Ventana máxima para alertar sobre cancelaciones (7 días en milisegundos) */
+export const CANCELLATION_NOTIFICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type NotificationType =
   | 'order_pending'
@@ -113,7 +117,8 @@ export function markAllNotificationsAsRead(
 export function generateNotifications(
   products: Product[],
   orders: Order[],
-  readIds: Set<string> = new Set()
+  readIds: Set<string> = new Set(),
+  referenceDate?: Date | number
 ): AdminNotification[] {
   const notifications: AdminNotification[] = [];
 
@@ -144,20 +149,33 @@ export function generateNotifications(
         });
       }
 
-      // 2. Pedidos en estado 'cancelled' (requieren atención / verificación)
+      // 2. Pedidos en estado 'cancelled' (requieren atención / verificación solo si son recientes <= 7 días)
+      // Este filtro NO modifica ni elimina pedidos históricos de la colección de pedidos
       if (order.orderStatus === 'cancelled') {
-        const id = `notif-order-cancelled-${order.id}`;
-        notifications.push({
-          id,
-          type: 'order_cancelled',
-          title: `Cancelación: ${order.reference}`,
-          message: `${order.customerName || 'Cliente'} · Pedido cancelado (${totalItems} uds). Revisar atención al cliente y stock.`,
-          date: order.date || 'Reciente',
-          read: readIds.has(id),
-          targetTab: 'orders',
-          targetId: order.id,
-          severity: 'danger'
-        });
+        const orderTs = parseOrderTimestamp(order.date);
+        const refTs = referenceDate
+          ? (typeof referenceDate === 'number' ? referenceDate : referenceDate.getTime())
+          : Date.now();
+
+        // Ventana de 7 días: (refTs - orderTs) entre 0 y 7 días (con 1 hora de margen)
+        const isRecentCancellation = !isNaN(orderTs)
+          ? refTs - orderTs >= -3600000 && refTs - orderTs <= CANCELLATION_NOTIFICATION_WINDOW_MS
+          : order.date === 'Reciente';
+
+        if (isRecentCancellation) {
+          const id = `notif-order-cancelled-${order.id}`;
+          notifications.push({
+            id,
+            type: 'order_cancelled',
+            title: `Cancelación: ${order.reference}`,
+            message: `${order.customerName || 'Cliente'} · Pedido cancelado (${totalItems} uds). Revisar atención al cliente y stock.`,
+            date: order.date || 'Reciente',
+            read: readIds.has(id),
+            targetTab: 'orders',
+            targetId: order.id,
+            severity: 'danger'
+          });
+        }
       }
     }
   }
@@ -289,4 +307,32 @@ export function generateNotifications(
 export function calculateUnreadCount(notifications: AdminNotification[]): number {
   if (!Array.isArray(notifications)) return 0;
   return notifications.reduce((acc, notif) => (notif && !notif.read ? acc + 1 : acc), 0);
+}
+
+/**
+ * Sincroniza y depura los IDs leídos en localStorage para eliminar alertas que ya se resolvieron
+ * (por ejemplo, producto cuyo stock se recuperó o pedido cancelado que superó los 7 días).
+ * Esto garantiza que:
+ * 1. Si en el futuro la condición vuelve a cumplirse, reaparezca como NO leída.
+ * 2. El almacenamiento en localStorage no crezca indefinidamente.
+ * 3. Mientras la alerta siga activa, permanezca leída sin desaparecer del panel.
+ */
+export function pruneResolvedNotificationIds(
+  activeNotifications: AdminNotification[],
+  currentReadIds: Set<string>
+): Set<string> {
+  const activeIdSet = new Set(activeNotifications.map((n) => n.id));
+  const pruned = new Set<string>();
+
+  for (const id of currentReadIds) {
+    if (activeIdSet.has(id)) {
+      pruned.add(id);
+    }
+  }
+
+  if (pruned.size !== currentReadIds.size) {
+    saveStoredReadNotificationIds(pruned);
+  }
+
+  return pruned;
 }

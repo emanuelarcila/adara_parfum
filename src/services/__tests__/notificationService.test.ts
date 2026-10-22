@@ -5,6 +5,8 @@ import {
   markAllNotificationsAsRead,
   getStoredReadNotificationIds,
   saveStoredReadNotificationIds,
+  pruneResolvedNotificationIds,
+  CANCELLATION_NOTIFICATION_WINDOW_MS,
   NOTIFICATIONS_STORAGE_KEY,
   AdminNotification
 } from '../notificationService';
@@ -310,6 +312,119 @@ console.log('\n[Caso 9: Estado vacío cuando no hay alertas]');
 const emptyNotifs = generateNotifications([], []);
 assertEquals(emptyNotifs.length, 0, 'Catálogo y pedidos vacíos deben retornar 0 notificaciones');
 assertEquals(calculateUnreadCount(emptyNotifs), 0, 'Contador de estado vacío debe ser 0');
+
+// ----------------------------------------------------------------------------
+console.log('\n[Caso 10: Ventana de 7 días para notificaciones de cancelaciones]');
+// ----------------------------------------------------------------------------
+const baseDate = new Date('2026-10-22T12:00:00-05:00'); // Fecha de referencia
+const recentCancelOrder: Order = {
+  id: 'ord-cancel-recent',
+  reference: 'AD-CANCEL-001',
+  date: '2026-10-20 10:00', // Hace 2 días (dentro de los 7 días)
+  customerName: 'Cliente Reciente',
+  customerPhone: '+57 300 000 0001',
+  customerCity: 'Bogotá',
+  channel: 'Tienda Web',
+  items: [{ productId: 'prod-oud', productName: 'Oud Royal', quantity: 1, unitPriceCOP: 540000 }],
+  totalCOP: 540000,
+  paymentStatus: 'pending',
+  orderStatus: 'cancelled',
+  inventoryDeducted: false
+};
+
+const oldCancelOrder: Order = {
+  id: 'ord-cancel-old',
+  reference: 'AD-CANCEL-OLD',
+  date: '2026-10-10 10:00', // Hace 12 días (fuera de la ventana de 7 días)
+  customerName: 'Cliente Antiguo',
+  customerPhone: '+57 300 000 0002',
+  customerCity: 'Medellín',
+  channel: 'Tienda Web',
+  items: [{ productId: 'prod-oud', productName: 'Oud Royal', quantity: 1, unitPriceCOP: 540000 }],
+  totalCOP: 540000,
+  paymentStatus: 'pending',
+  orderStatus: 'cancelled',
+  inventoryDeducted: false
+};
+
+const originalOrdersList = [recentCancelOrder, oldCancelOrder];
+const notifsWindow = generateNotifications([], originalOrdersList, new Set(), baseDate);
+
+const recentNotif = notifsWindow.find((n) => n.id === 'notif-order-cancelled-ord-cancel-recent');
+const oldNotif = notifsWindow.find((n) => n.id === 'notif-order-cancelled-ord-cancel-old');
+
+assert(recentNotif !== undefined, 'La cancelación de hace 2 días DEBE generar notificación');
+assert(oldNotif === undefined, 'La cancelación de hace 12 días NO debe generar notificación (supera 7 días)');
+assertEquals(originalOrdersList.length, 2, 'El filtro de notificación NO debe alterar la lista de pedidos original');
+
+// ----------------------------------------------------------------------------
+console.log('\n[Caso 11: Depuración de IDs resueltos y nueva alerta ante futura escasez]');
+// ----------------------------------------------------------------------------
+// 1. Producto con stock bajo
+const prodWithLowStock: Product = {
+  id: 'prod-cycle',
+  name: 'Ambre Cycle',
+  brand: 'ADARA',
+  priceCOP: 400000,
+  stock: 2,
+  threshold: 5,
+  family: 'Oriental & Ámbar',
+  status: 'active',
+  featured: false
+};
+
+const initialNotifs = generateNotifications([prodWithLowStock], []);
+assertEquals(initialNotifs.length, 1, 'Debe haber 1 alerta inicial');
+const alertId = initialNotifs[0].id;
+
+// 2. Administrador lee la alerta:
+let activeReadIds = new Set<string>([alertId]);
+const readNotifs = generateNotifications([prodWithLowStock], [], activeReadIds);
+assertEquals(readNotifs[0].read, true, 'La alerta debe quedar marcada como leída');
+assertEquals(calculateUnreadCount(readNotifs), 0, 'No leídas debe ser 0');
+
+// Mientras sigue con stock bajo, la depuración NO borra el ID de leída:
+activeReadIds = pruneResolvedNotificationIds(readNotifs, activeReadIds);
+assert(activeReadIds.has(alertId), 'El ID leído se conserva mientras la alerta siga activa');
+
+// 3. Se resuelve la condición (llegó stock a 25):
+const replenishedProd: Product = { ...prodWithLowStock, stock: 25 };
+const resolvedNotifs = generateNotifications([replenishedProd], [], activeReadIds);
+assertEquals(resolvedNotifs.length, 0, 'La alerta resuelta desaparece de las notificaciones activas');
+
+// La depuración elimina el ID resuelto:
+activeReadIds = pruneResolvedNotificationIds(resolvedNotifs, activeReadIds);
+assert(!activeReadIds.has(alertId), 'El ID resuelto se depura de readIds para permitir futuras alertas');
+
+// 4. Semanas después, el producto vuelve a caer a stock 1 (nuevo evento de escasez):
+const droppedProd: Product = { ...prodWithLowStock, stock: 1 };
+const newCycleNotifs = generateNotifications([droppedProd], [], activeReadIds);
+assertEquals(newCycleNotifs.length, 1, 'Reaparece la alerta de inventario al cumplirse de nuevo la condición');
+assertEquals(newCycleNotifs[0].read, false, 'La NUEVA alerta es NO leída (read: false) para alertar al administrador');
+assertEquals(calculateUnreadCount(newCycleNotifs), 1, 'El contador de no leídas se incrementa a 1');
+
+// ----------------------------------------------------------------------------
+console.log('\n[Caso 12: Resiliencia ante persistencia local corrupta o vacía]');
+// ----------------------------------------------------------------------------
+// Simular JSON corrupto en localStorage:
+mockLocalStorageMap[NOTIFICATIONS_STORAGE_KEY] = '{ corrupted json string...';
+const corruptedReadIds = getStoredReadNotificationIds();
+assert(corruptedReadIds instanceof Set, 'Debe retornar una instancia de Set');
+assertEquals(corruptedReadIds.size, 0, 'Debe retornar un Set vacío ante JSON corrupto sin arrojar error');
+
+// Simular objeto no array en localStorage:
+mockLocalStorageMap[NOTIFICATIONS_STORAGE_KEY] = JSON.stringify({ notAnArray: true });
+const objectReadIds = getStoredReadNotificationIds();
+assertEquals(objectReadIds.size, 0, 'Debe retornar Set vacío si el dato no es un arreglo');
+
+// Simular arreglo con elementos no-string:
+mockLocalStorageMap[NOTIFICATIONS_STORAGE_KEY] = JSON.stringify(['valid-id-1', 12345, null, undefined, {}]);
+const filteredReadIds = getStoredReadNotificationIds();
+assertEquals(filteredReadIds.size, 1, 'Debe filtrar únicamente los strings válidos');
+assert(filteredReadIds.has('valid-id-1'), 'Debe contener el ID válido');
+
+// Restaurar localStorage limpio para los tests
+delete mockLocalStorageMap[NOTIFICATIONS_STORAGE_KEY];
 
 console.log('\n============================================================');
 console.log(`TOTAL PRUEBAS EJECUTADAS: ${passedTests + failedTests}`);

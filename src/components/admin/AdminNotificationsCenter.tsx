@@ -17,7 +17,8 @@ import {
   calculateUnreadCount,
   getStoredReadNotificationIds,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  pruneResolvedNotificationIds
 } from '../../services/notificationService';
 
 interface AdminNotificationsCenterProps {
@@ -42,6 +43,14 @@ export const AdminNotificationsCenter: React.FC<AdminNotificationsCenterProps> =
 
   const unreadCount = useMemo(() => {
     return calculateUnreadCount(notifications);
+  }, [notifications]);
+
+  // Depuración y sincronización reactiva de IDs leídos cuando se resuelven las alertas
+  useEffect(() => {
+    setReadIds((prev) => {
+      const pruned = pruneResolvedNotificationIds(notifications, prev);
+      return pruned.size === prev.size ? prev : pruned;
+    });
   }, [notifications]);
 
   // Cierre al hacer clic fuera del componente
