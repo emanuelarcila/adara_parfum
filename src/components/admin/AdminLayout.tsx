@@ -9,7 +9,8 @@ import {
   Store,
   Bell,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from 'lucide-react';
 import { DateRange } from '../../types';
 
@@ -27,6 +28,8 @@ interface AdminLayoutProps {
   selectedPeriod: DateRange;
   onPeriodChange: (period: DateRange) => void;
   onSwitchToStore: () => void;
+  onLogout?: () => void;
+  adminEmail?: string | null;
   children: React.ReactNode;
 }
 
@@ -36,6 +39,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   selectedPeriod,
   onPeriodChange,
   onSwitchToStore,
+  onLogout,
+  adminEmail,
   children
 }) => {
   const menuItems = [
@@ -257,9 +262,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              padding: '8px',
+              padding: '8px 10px',
               borderRadius: '6px',
-              backgroundColor: 'rgba(17, 17, 15, 0.6)'
+              backgroundColor: 'rgba(17, 17, 15, 0.6)',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
             }}
           >
             <div
@@ -273,15 +279,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '11px',
-                fontWeight: 700
+                fontWeight: 700,
+                flexShrink: 0
               }}
             >
-              EA
+              {adminEmail ? adminEmail.slice(0, 2).toUpperCase() : 'EA'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p
                 style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 600,
                   margin: 0,
                   color: 'var(--color-ivory)',
@@ -289,13 +296,45 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}
+                title={adminEmail || 'Emanuel Arcila'}
               >
-                Emanuel Arcila
+                {adminEmail || 'Emanuel Arcila'}
               </p>
-              <span style={{ fontSize: '10px', color: 'var(--color-gold)' }}>
-                Director de Marca
+              <span style={{ fontSize: '9px', color: 'var(--color-gold)', letterSpacing: '0.04em', display: 'block' }}>
+                ADMIN AUTENTICADO
               </span>
             </div>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                title="Cerrar sesión de Firebase"
+                aria-label="Cerrar sesión"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-danger)';
+                  e.currentTarget.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         </div>
       </aside>

@@ -16,15 +16,34 @@ import { ProductDetailModal } from './components/store/ProductDetailModal';
 import { CartDrawer } from './components/store/CartDrawer';
 import { StoreFooter } from './components/store/StoreFooter';
 
-// Admin Components
-import { AdminLayout, AdminTab } from './components/admin/AdminLayout';
+// Admin Components (Loaded on-demand with React.lazy for bundle optimization)
+import type { AdminTab } from './components/admin/AdminLayout';
 import { AdminLoginModal } from './components/admin/AdminLoginModal';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { AdminProducts } from './components/admin/AdminProducts';
-import { AdminOrders } from './components/admin/AdminOrders';
-import { AdminManualSale } from './components/admin/AdminManualSale';
-import { AdminInventory } from './components/admin/AdminInventory';
-import { AdminReports } from './components/admin/AdminReports';
+
+const AdminLayout = React.lazy(() =>
+  import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout }))
+);
+const AdminDashboard = React.lazy(() =>
+  import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const AdminProducts = React.lazy(() =>
+  import('./components/admin/AdminProducts').then((m) => ({ default: m.AdminProducts }))
+);
+const AdminOrders = React.lazy(() =>
+  import('./components/admin/AdminOrders').then((m) => ({ default: m.AdminOrders }))
+);
+const AdminManualSale = React.lazy(() =>
+  import('./components/admin/AdminManualSale').then((m) => ({ default: m.AdminManualSale }))
+);
+const AdminInventory = React.lazy(() =>
+  import('./components/admin/AdminInventory').then((m) => ({ default: m.AdminInventory }))
+);
+const AdminReports = React.lazy(() =>
+  import('./components/admin/AdminReports').then((m) => ({ default: m.AdminReports }))
+);
+
+// Firebase Auth Service & Authorization
+import { subscribeToAuth, logoutUser, isUserAdmin, type User } from './lib/firebase';
 
 export const App: React.FC = () => {
   // Navigation & View state
@@ -32,8 +51,10 @@ export const App: React.FC = () => {
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [selectedPeriod, setSelectedPeriod] = useState<DateRange>('month');
 
-  // Auth state for Admin
+  // Firebase Authentication state for Admin
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Data state
@@ -70,6 +91,36 @@ export const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('adara_cart_v2', JSON.stringify(cart));
   }, [cart]);
+
+  // Observe Firebase Authentication session changes with strict UID authorization
+  useEffect(() => {
+    const unsubscribe = subscribeToAuth((user) => {
+      if (user) {
+        if (isUserAdmin(user)) {
+          setCurrentUser(user);
+          setIsAdminLoggedIn(true);
+        } else {
+          // Usuario autenticado pero NO autorizado en la lista de UIDs permitidos
+          setCurrentUser(null);
+          setIsAdminLoggedIn(false);
+          logoutUser().catch(() => {});
+          showToast('warning', 'Acceso Denegado', 'Esta cuenta no posee autorización administrativa.');
+          if (currentView === 'admin') {
+            setCurrentView('store');
+          }
+        }
+      } else {
+        setCurrentUser(null);
+        setIsAdminLoggedIn(false);
+        if (currentView === 'admin') {
+          setCurrentView('store');
+        }
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentView]);
 
   // Toast Helper
   const showToast = (type: 'success' | 'warning' | 'info', title: string, message?: string) => {
@@ -123,20 +174,33 @@ export const App: React.FC = () => {
     setCart([]);
   };
 
-  // Admin Switcher Handler
+  // Admin Switcher Handler (Protected against unauthenticated and unauthorized access)
   const handleSwitchView = (view: 'store' | 'admin') => {
-    if (view === 'admin' && !isAdminLoggedIn) {
-      setIsLoginModalOpen(true);
-      return;
+    if (view === 'admin') {
+      if (!currentUser || !isUserAdmin(currentUser)) {
+        setIsLoginModalOpen(true);
+        return;
+      }
     }
     setCurrentView(view);
   };
 
   const handleLoginSuccess = () => {
-    setIsAdminLoggedIn(true);
     setIsLoginModalOpen(false);
     setCurrentView('admin');
-    showToast('success', 'Bienvenido a ADARA Control', 'Sesión iniciada como Director Creativo.');
+    showToast('success', 'Sesión autenticada', 'Acceso concedido al panel de control ADARA.');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      setIsAdminLoggedIn(false);
+      setCurrentView('store');
+      showToast('info', 'Sesión finalizada', 'Has cerrado la sesión administrativa de forma segura.');
+    } catch {
+      showToast('warning', 'Error al cerrar sesión', 'No fue posible completar el cierre de sesión.');
+    }
   };
 
   // Product CRUD Handlers
@@ -239,8 +303,8 @@ export const App: React.FC = () => {
         onLoginSuccess={handleLoginSuccess}
       />
 
-      {/* Render Public Store or Admin Dashboard */}
-      {currentView === 'store' ? (
+      {/* Render Public Store or Admin Dashboard (Secured: requires authorized admin) */}
+      {currentView === 'store' || !currentUser || !isUserAdmin(currentUser) ? (
         <main>
           {/* Public Store Navbar */}
           <StoreNavbar
@@ -285,58 +349,98 @@ export const App: React.FC = () => {
           />
         </main>
       ) : (
-        /* Admin Control Room */
-        <AdminLayout
-          currentTab={adminTab}
-          onTabChange={setAdminTab}
-          selectedPeriod={selectedPeriod}
-          onPeriodChange={setSelectedPeriod}
-          onSwitchToStore={() => setCurrentView('store')}
+        /* Admin Control Room (Secured: requires authenticated & authorized currentUser) */
+        <React.Suspense
+          fallback={
+            <div
+              style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#090908',
+                color: 'var(--color-ivory)',
+                gap: '16px'
+              }}
+            >
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: '2px solid rgba(198, 161, 91, 0.2)',
+                  borderTopColor: 'var(--color-gold)',
+                  animation: 'spin 0.8s linear infinite'
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '11px',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-gold)'
+                }}
+              >
+                Cargando ADARA Control...
+              </span>
+            </div>
+          }
         >
-          {adminTab === 'dashboard' && (
-            <AdminDashboard
-              orders={orders}
-              products={products}
-              selectedPeriod={selectedPeriod}
-              onNavigateTab={setAdminTab}
-            />
-          )}
+          <AdminLayout
+            currentTab={adminTab}
+            onTabChange={setAdminTab}
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+            onSwitchToStore={() => setCurrentView('store')}
+            onLogout={handleLogout}
+            adminEmail={currentUser?.email}
+          >
+            {adminTab === 'dashboard' && (
+              <AdminDashboard
+                orders={orders}
+                products={products}
+                selectedPeriod={selectedPeriod}
+                onNavigateTab={setAdminTab}
+              />
+            )}
 
-          {adminTab === 'products' && (
-            <AdminProducts
-              products={products}
-              onSaveProduct={handleSaveProduct}
-              onToggleStatus={handleToggleProductStatus}
-              onDeleteProduct={handleDeleteProduct}
-            />
-          )}
+            {adminTab === 'products' && (
+              <AdminProducts
+                products={products}
+                onSaveProduct={handleSaveProduct}
+                onToggleStatus={handleToggleProductStatus}
+                onDeleteProduct={handleDeleteProduct}
+              />
+            )}
 
-          {adminTab === 'orders' && (
-            <AdminOrders
-              orders={orders}
-              onUpdateOrderStatus={handleUpdateOrderStatus}
-              onUpdatePaymentStatus={handleUpdatePaymentStatus}
-            />
-          )}
+            {adminTab === 'orders' && (
+              <AdminOrders
+                orders={orders}
+                onUpdateOrderStatus={handleUpdateOrderStatus}
+                onUpdatePaymentStatus={handleUpdatePaymentStatus}
+              />
+            )}
 
-          {adminTab === 'manual-sale' && (
-            <AdminManualSale
-              products={products.filter((p) => p.status === 'active')}
-              onCompleteSale={handleCompleteManualSale}
-            />
-          )}
+            {adminTab === 'manual-sale' && (
+              <AdminManualSale
+                products={products.filter((p) => p.status === 'active')}
+                onCompleteSale={handleCompleteManualSale}
+              />
+            )}
 
-          {adminTab === 'inventory' && (
-            <AdminInventory
-              products={products}
-              onAdjustStock={handleAdjustStock}
-            />
-          )}
+            {adminTab === 'inventory' && (
+              <AdminInventory
+                products={products}
+                onAdjustStock={handleAdjustStock}
+              />
+            )}
 
-          {adminTab === 'reports' && (
-            <AdminReports selectedPeriod={selectedPeriod} />
-          )}
-        </AdminLayout>
+            {adminTab === 'reports' && (
+              <AdminReports selectedPeriod={selectedPeriod} />
+            )}
+          </AdminLayout>
+        </React.Suspense>
       )}
     </div>
   );
