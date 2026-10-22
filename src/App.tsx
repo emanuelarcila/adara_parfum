@@ -307,7 +307,9 @@ export const App: React.FC = () => {
       <CustomCursor />
 
       {/* Floating Interface Switcher */}
-      <ViewSwitcher currentView={currentView} onSwitch={handleSwitchView} />
+      <div style={{ pointerEvents: isLoginModalOpen ? 'none' : 'auto' }}>
+        <ViewSwitcher currentView={currentView} onSwitch={handleSwitchView} />
+      </div>
 
       {/* Toast Feedback */}
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
@@ -321,7 +323,13 @@ export const App: React.FC = () => {
 
       {/* Render Public Store or Admin Dashboard (Secured: requires authorized admin) */}
       {currentView === 'store' || !currentUser || !isUserAdmin(currentUser) ? (
-        <main>
+        <main
+          aria-hidden={isLoginModalOpen}
+          style={{
+            pointerEvents: isLoginModalOpen ? 'none' : 'auto',
+            userSelect: isLoginModalOpen ? 'none' : 'auto'
+          }}
+        >
           {/* Public Store Navbar */}
           <StoreNavbar
             cartCount={cart.reduce((acc, it) => acc + it.quantity, 0)}

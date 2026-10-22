@@ -184,8 +184,8 @@ h1, h2, h3, h4, h5, h6 {
   height: 6px;
   background-color: var(--color-gold);
   border-radius: 50%;
-  pointer-events: none;
-  z-index: 9999;
+  pointer-events: none !important;
+  z-index: 100000;
   transform: translate(-50%, -50%);
   transition: opacity 0.15s ease, transform 0.1s linear;
   box-shadow: 0 0 10px var(--color-gold);
@@ -199,8 +199,8 @@ h1, h2, h3, h4, h5, h6 {
   height: 34px;
   border: 1px solid rgba(198, 161, 91, 0.55);
   border-radius: 50%;
-  pointer-events: none;
-  z-index: 9998;
+  pointer-events: none !important;
+  z-index: 99999;
   transform: translate(-50%, -50%);
   transition: width 0.3s var(--ease-cinematic),
               height 0.3s var(--ease-cinematic),

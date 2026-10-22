@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
 import { loginWithEmail, formatAuthError, isUserAdmin, logoutUser } from '../../lib/firebase';
 
 interface AdminLoginModalProps {
@@ -18,6 +18,45 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
+  const handleModalClose = () => {
+    if (isLoading) return;
+    setPassword('');
+    setErrorMessage('');
+    onClose();
+  };
+
+  // Keyboard accessibility (Escape) & background scroll locking
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) {
+        handleModalClose();
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        emailInputRef.current?.focus();
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = 'unset';
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, isLoading]);
 
   if (!isOpen) return null;
 
@@ -58,15 +97,11 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     }
   };
 
-  const handleModalClose = () => {
-    if (isLoading) return;
-    setPassword('');
-    setErrorMessage('');
-    onClose();
-  };
-
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="admin-login-title"
       style={{
         position: 'fixed',
         inset: 0,
@@ -77,7 +112,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         padding: '24px',
         backgroundColor: 'rgba(7, 7, 6, 0.88)',
         backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)'
+        WebkitBackdropFilter: 'blur(20px)',
+        pointerEvents: 'auto'
       }}
       onClick={handleModalClose}
     >
@@ -90,10 +126,46 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           padding: '40px 36px',
           backgroundColor: 'rgba(23, 23, 20, 0.96)',
           border: '1px solid var(--color-border-gold)',
-          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.95)'
+          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.95)',
+          position: 'relative'
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Botón de cierre visible y accesible */}
+        <button
+          type="button"
+          onClick={handleModalClose}
+          disabled={isLoading}
+          data-cursor="CERRAR"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            zIndex: 10,
+            background: 'rgba(11, 11, 10, 0.6)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '50%',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-ivory)',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: isLoading ? 0.4 : 1
+          }}
+          onMouseEnter={(e) => {
+            if (!isLoading) e.currentTarget.style.borderColor = 'var(--color-gold)';
+          }}
+          onMouseLeave={(e) => {
+            if (!isLoading) e.currentTarget.style.borderColor = 'var(--color-border)';
+          }}
+          aria-label="Cerrar ventana de inicio de sesión"
+        >
+          <X size={16} />
+        </button>
+
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div
             style={{
@@ -111,7 +183,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             <ShieldCheck size={22} color="var(--color-gold)" />
           </div>
 
-          <h2 style={{ fontSize: '26px', margin: '0 0 6px', color: 'var(--color-ivory)', fontFamily: 'var(--font-display)' }}>
+          <h2
+            id="admin-login-title"
+            style={{ fontSize: '26px', margin: '0 0 6px', color: 'var(--color-ivory)', fontFamily: 'var(--font-display)' }}
+          >
             ADARA CONTROL
           </h2>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
@@ -165,7 +240,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 letterSpacing: '0.12em',
                 color: 'var(--color-text-secondary)',
                 marginBottom: '8px',
-                fontWeight: 600
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
               Correo Electrónico
@@ -178,11 +254,14 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 border: '1px solid var(--color-border)',
                 borderRadius: '4px',
                 padding: '10px 14px',
-                gap: '10px'
+                gap: '10px',
+                cursor: 'text'
               }}
+              onClick={() => emailInputRef.current?.focus()}
             >
-              <Mail size={16} color="var(--color-text-tertiary)" />
+              <Mail size={16} color="var(--color-text-tertiary)" style={{ pointerEvents: 'none' }} />
               <input
+                ref={emailInputRef}
                 id="admin-email-input"
                 type="email"
                 value={email}
@@ -198,7 +277,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   fontSize: '13px',
                   width: '100%',
                   outline: 'none',
-                  opacity: isLoading ? 0.6 : 1
+                  opacity: isLoading ? 0.6 : 1,
+                  cursor: 'text'
                 }}
               />
             </div>
@@ -214,7 +294,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 letterSpacing: '0.12em',
                 color: 'var(--color-text-secondary)',
                 marginBottom: '8px',
-                fontWeight: 600
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
               Contraseña
@@ -227,11 +308,18 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 border: '1px solid var(--color-border)',
                 borderRadius: '4px',
                 padding: '10px 14px',
-                gap: '10px'
+                gap: '10px',
+                cursor: 'text'
+              }}
+              onClick={(e) => {
+                if (!(e.target as HTMLElement).closest('button')) {
+                  passwordInputRef.current?.focus();
+                }
               }}
             >
-              <Lock size={16} color="var(--color-text-tertiary)" />
+              <Lock size={16} color="var(--color-text-tertiary)" style={{ pointerEvents: 'none' }} />
               <input
+                ref={passwordInputRef}
                 id="admin-password-input"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -247,13 +335,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   fontSize: '13px',
                   width: '100%',
                   outline: 'none',
-                  opacity: isLoading ? 0.6 : 1
+                  opacity: isLoading ? 0.6 : 1,
+                  cursor: 'text'
                 }}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isLoading}
+                data-cursor={showPassword ? 'OCULTAR' : 'VER'}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -271,6 +361,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           <button
             type="submit"
             disabled={isLoading}
+            data-cursor="ACCEDER"
             style={{
               marginTop: '10px',
               padding: '14px',
