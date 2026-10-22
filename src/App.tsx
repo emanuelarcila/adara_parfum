@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Product, CartItem, Order, DateRange, OrderStatus, PaymentStatus } from './types';
+import { Product, CartItem, Order, DateRange, OrderStatus, PaymentStatus, ProductVariantItem, isPricedVariant, isPurchasableVariant } from './types';
 import { INITIAL_PRODUCTS, INITIAL_ORDERS } from './data/mockData';
 
 // Common Components
@@ -74,8 +74,29 @@ export const App: React.FC = () => {
   });
 
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('adara_cart_v2');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('adara_cart_v2');
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item: any) => {
+          if (!item || !item.product) return null;
+          const normalizedItem: CartItem = {
+            product: item.product,
+            variantId: item.variantId || undefined,
+            volume: item.volume || item.product.volume || undefined,
+            unitPriceCOP: typeof item.unitPriceCOP === 'number'
+              ? item.unitPriceCOP
+              : (typeof item.product.priceCOP === 'number' ? item.product.priceCOP : null),
+            quantity: typeof item.quantity === 'number' && item.quantity > 0 ? Math.floor(item.quantity) : 1
+          };
+          return normalizedItem;
+        })
+        .filter(Boolean) as CartItem[];
+    } catch {
+      return [];
+    }
   });
 
   // UI state
@@ -140,43 +161,109 @@ export const App: React.FC = () => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Cart Handlers
-  const handleAddToCart = (product: Product, quantity = 1) => {
-    // 1. Protección estricta contra productos sin precio válido
+  // Cart Handlers (Fase 2.5A: Soporte integral de variantes 30ml, 50ml y 100ml)
+  const handleAddToCart = (product: Product, quantity = 1, selectedVariant?: ProductVariantItem) => {
+    // Si el producto tiene variantes, debe seleccionarse una variante válida y activa
+    if (product.variants && product.variants.length > 0) {
+      if (!selectedVariant) {
+        showToast('warning', 'Selecciona una presentación', 'Debes elegir el tamaño (30ml, 50ml, 100ml) antes de añadir.');
+        return;
+      }
+
+      if (!isPricedVariant(selectedVariant)) {
+        showToast('warning', 'Precio bajo consulta', `${product.name} (${selectedVariant.volume}) no tiene precio fijado.`);
+        return;
+      }
+
+      if (!isPurchasableVariant(selectedVariant)) {
+        showToast('warning', 'Presentación agotada', `${product.name} (${selectedVariant.volume}) no cuenta con existencias.`);
+        return;
+      }
+
+      const availableStock = typeof selectedVariant.stock === 'number' && selectedVariant.stock > 0 ? selectedVariant.stock : 1;
+      const unitPrice = selectedVariant.priceCOP!;
+      const volume = selectedVariant.volume;
+      const variantId = selectedVariant.id;
+
+      setCart((prev) => {
+        const existing = prev.find((item) => item.product.id === product.id && item.variantId === variantId);
+        if (existing) {
+          const nextQty = Math.min(existing.quantity + quantity, availableStock);
+          return prev.map((item) =>
+            item.product.id === product.id && item.variantId === variantId
+              ? { ...item, quantity: nextQty, unitPriceCOP: unitPrice, volume }
+              : item
+          );
+        }
+        return [
+          ...prev,
+          {
+            product,
+            variantId,
+            volume,
+            unitPriceCOP: unitPrice,
+            quantity: Math.min(quantity, availableStock)
+          }
+        ];
+      });
+
+      showToast('success', 'Añadido a tu bolsa', `${product.name} [${volume}] (x${quantity}) agregado a la selección.`);
+      return;
+    }
+
+    // Flujo compatible con productos antiguos sin variantes
     if (!product.priceCOP || product.priceCOP <= 0) {
       showToast('warning', 'Producto bajo consulta', `${product.name} se encuentra en cotización y no admite compra directa.`);
       return;
     }
 
-    // 2. Protección estricta contra productos sin existencias o agotados
     if (typeof product.stock === 'number' && product.stock <= 0) {
       showToast('warning', 'Sin existencias', `${product.name} no cuenta con inventario disponible en este momento.`);
       return;
     }
 
     const availableStock = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 99;
+    const unitPrice = product.priceCOP;
+    const volume = product.volume || undefined;
 
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === product.id && !item.variantId);
       if (existing) {
         const nextQty = Math.min(existing.quantity + quantity, availableStock);
         return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: nextQty }
+          item.product.id === product.id && !item.variantId
+            ? { ...item, quantity: nextQty, unitPriceCOP: unitPrice, volume }
             : item
         );
       }
-      return [...prev, { product, quantity: Math.min(quantity, availableStock) }];
+      return [
+        ...prev,
+        {
+          product,
+          variantId: undefined,
+          volume,
+          unitPriceCOP: unitPrice,
+          quantity: Math.min(quantity, availableStock)
+        }
+      ];
     });
+
     showToast('success', 'Añadido a tu bolsa', `${product.name} (x${quantity}) agregado a la selección.`);
   };
 
-  const handleUpdateCartQuantity = (productId: string, delta: number) => {
+  const handleUpdateCartQuantity = (productId: string, delta: number, variantId?: string) => {
     setCart((prev) =>
       prev
         .map((item) => {
-          if (item.product.id === productId) {
-            const maxQty = typeof item.product.stock === 'number' && item.product.stock > 0 ? item.product.stock : 99;
+          const matches = item.product.id === productId && (item.variantId || '') === (variantId || '');
+          if (matches) {
+            let maxQty = 99;
+            if (item.variantId && Array.isArray(item.product.variants)) {
+              const v = item.product.variants.find((vr) => vr.id === item.variantId);
+              if (v && typeof v.stock === 'number') maxQty = v.stock;
+            } else if (typeof item.product.stock === 'number' && item.product.stock > 0) {
+              maxQty = item.product.stock;
+            }
             const newQty = Math.min(item.quantity + delta, maxQty);
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
@@ -186,8 +273,10 @@ export const App: React.FC = () => {
     );
   };
 
-  const handleRemoveFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveFromCart = (productId: string, variantId?: string) => {
+    setCart((prev) =>
+      prev.filter((item) => !(item.product.id === productId && (item.variantId || '') === (variantId || '')))
+    );
     showToast('info', 'Fragancia eliminada de la bolsa');
   };
 

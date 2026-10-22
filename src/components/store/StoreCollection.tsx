@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Product, isPurchasableProduct, isPricedProduct } from '../../types';
+import { Product, isPurchasableProduct, isPricedProduct, isPurchasableVariant, isPricedVariant } from '../../types';
 import { formatCOP, formatProductPrice } from '../../data/mockData';
 import { Eye, Plus, SlidersHorizontal, Sparkles } from 'lucide-react';
 
@@ -213,9 +213,35 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
             }}
           >
             {filteredProducts.map((product) => {
-              const isPriced = isPricedProduct(product);
-              const isAvailable = typeof product.stock === 'number' ? product.stock > 0 : false;
-              const canPurchase = isPurchasableProduct(product);
+              const hasVariants = Boolean(product.variants && product.variants.length > 0);
+              const purchasableVariants = hasVariants ? product.variants!.filter(isPurchasableVariant) : [];
+              const pricedVariants = hasVariants ? product.variants!.filter(isPricedVariant) : [];
+
+              const isPriced = hasVariants
+                ? pricedVariants.length > 0
+                : isPricedProduct(product);
+
+              const isAvailable = hasVariants
+                ? product.variants!.some((v) => typeof v.stock === 'number' && v.stock > 0 && v.status === 'active')
+                : (typeof product.stock === 'number' ? product.stock > 0 && product.status === 'active' : false);
+
+              const canPurchase = hasVariants
+                ? purchasableVariants.length > 0
+                : isPurchasableProduct(product);
+
+              const minVariantPrice = pricedVariants.length > 0
+                ? Math.min(...pricedVariants.map((v) => v.priceCOP!))
+                : null;
+              const maxVariantPrice = pricedVariants.length > 0
+                ? Math.max(...pricedVariants.map((v) => v.priceCOP!))
+                : null;
+
+              const priceDisplay = hasVariants
+                ? (minVariantPrice !== null
+                    ? (minVariantPrice === maxVariantPrice ? formatCOP(minVariantPrice) : `Desde ${formatCOP(minVariantPrice)}`)
+                    : 'Bajo consulta')
+                : formatProductPrice(product.priceCOP);
+
               const notesTopList = product.notesTop || [];
               const notesBaseList = product.notesBase || [];
               const accordsList = product.accords || [];
@@ -393,7 +419,7 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
                     )}
 
                     {/* Volume Stamp */}
-                    {product.volume && (
+                    {(hasVariants || product.volume) && (
                       <div
                         style={{
                           position: 'absolute',
@@ -405,7 +431,9 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
                           textTransform: 'uppercase'
                         }}
                       >
-                        {product.volume}
+                        {hasVariants
+                          ? product.variants!.map((v) => v.volume).join(' · ')
+                          : product.volume}
                       </div>
                     )}
                   </div>
@@ -518,7 +546,7 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
                             margin: 0
                           }}
                         >
-                          {formatProductPrice(product.priceCOP)}
+                          {priceDisplay}
                         </p>
                       </div>
 
@@ -550,14 +578,23 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => canPurchase && onAddToCart(product)}
+                          onClick={() => {
+                            if (!canPurchase) return;
+                            if (hasVariants) {
+                              onSelectProduct(product);
+                            } else {
+                              onAddToCart(product);
+                            }
+                          }}
                           disabled={!canPurchase}
-                          data-cursor={canPurchase ? 'AÑADIR' : undefined}
+                          data-cursor={canPurchase ? (hasVariants ? 'ELEGIR' : 'AÑADIR') : undefined}
                           title={
                             !isPriced
                               ? 'Fragancia bajo consulta. No habilitada para compra directa.'
                               : !isAvailable
                               ? 'Sin existencias en este momento.'
+                              : hasVariants
+                              ? 'Seleccionar presentación (30 ml, 50 ml, 100 ml)'
                               : 'Añadir a la bolsa de compra'
                           }
                           style={{
@@ -584,7 +621,11 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
                           }}
                         >
                           {canPurchase && <Plus size={14} />}
-                          <span>{canPurchase ? 'Añadir' : (!isPriced ? 'Consulta' : 'Agotado')}</span>
+                          <span>
+                            {canPurchase
+                              ? (hasVariants ? 'Elegir' : 'Añadir')
+                              : (!isPriced ? 'Consulta' : 'Agotado')}
+                          </span>
                         </button>
                       </div>
                     </div>

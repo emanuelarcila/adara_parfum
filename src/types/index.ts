@@ -75,14 +75,56 @@ export function isPurchasableProduct(
   );
 }
 
+export function isPricedVariant(v: { priceCOP?: number | null } | null | undefined): boolean {
+  if (!v) return false;
+  return typeof v.priceCOP === 'number' && !isNaN(v.priceCOP) && v.priceCOP > 0;
+}
+
+export function isPurchasableVariant(
+  v: { status?: string; priceCOP?: number | null; stock?: number | null } | null | undefined
+): boolean {
+  if (!v) return false;
+  return (
+    v.status === 'active' &&
+    typeof v.priceCOP === 'number' &&
+    !isNaN(v.priceCOP) &&
+    v.priceCOP > 0 &&
+    typeof v.stock === 'number' &&
+    !isNaN(v.stock) &&
+    v.stock > 0
+  );
+}
+
 export interface CartItem {
   product: Product;
+  variantId?: string;       // Identificador único de variante (ej. 'adh-120-30ml')
+  volume?: string;          // Presentación seleccionada ('30ml', '50ml', '100ml')
+  unitPriceCOP?: number | null; // Precio unitario de la variante (o fallback a producto padre)
   quantity: number;
+}
+
+/**
+ * Genera la clave compuesta única para identificar una línea del carrito
+ * diferenciando presentaciones de 30ml, 50ml y 100ml del mismo perfume.
+ */
+export function getCartItemKey(productId: string, variantId?: string): string {
+  return variantId ? `${productId}::${variantId}` : productId;
 }
 
 export type OrderStatus = 'pending' | 'preparing' | 'shipped' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'paid' | 'pending' | 'on_delivery';
 export type SalesChannel = 'Tienda Web' | 'WhatsApp' | 'Boutique Bogotá' | 'Distribuidor';
+
+// Métodos de pago y financiación contemplados en el ecosistema comercial de Colombia
+export type PaymentMethod =
+  | 'whatsapp_concierge'   // Canal actual asistido por WhatsApp
+  | 'wompi'                // Pasarela en línea (PSE, tarjetas, Bancolombia)
+  | 'addi'                 // Financiación compre ahora, pague después (BNPL)
+  | 'sistecredito'         // Financiación retail colombiana
+  | 'contra_entrega'       // Pago contra entrega al recibir el paquete
+  | 'transferencia'        // Transferencia manual (Nequi, Bancolombia)
+  | 'efectivo_boutique'    // Efectivo en tienda física
+  | (string & {});
 
 export interface OrderItem {
   productId: string;
@@ -107,6 +149,14 @@ export interface Order {
   orderStatus: OrderStatus;
   notes?: string;
   inventoryDeducted?: boolean; // Trazabilidad Fase 2.4A: true si el stock ya fue descontado del inventario
+
+  // Preparación arquitectónica Fase 2.5: Medios de Pago y Financiación
+  paymentMethod?: PaymentMethod;         // Método de pago seleccionado
+  transactionId?: string;               // Identificador asignado por la pasarela/proveedor
+  expectedAmountCOP?: number;           // Importe esperado liquidado para verificación de integridad
+  currency?: 'COP';                     // Moneda oficial de liquidación (estrictamente COP)
+  paidAt?: string;                      // Fecha/hora de confirmación verificada del pago
+  paymentProviderData?: Record<string, unknown>; // Metadatos de auditoría no sensibles del proveedor
 }
 
 export type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';

@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Product, isPurchasableProduct, isPricedProduct } from '../../types';
+import {
+  Product,
+  ProductVariantItem,
+  isPurchasableProduct,
+  isPricedProduct,
+  isPurchasableVariant,
+  isPricedVariant
+} from '../../types';
 import { formatCOP, formatProductPrice } from '../../data/mockData';
 import { X, Plus, Minus, ShoppingBag, Sparkles } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity: number) => void;
+  onAddToCart: (product: Product, quantity: number, selectedVariant?: ProductVariantItem) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -14,12 +21,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onClose,
   onAddToCart
 }) => {
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
 
+  // Inicializar selección de variante cuando cambia el producto
   useEffect(() => {
     setQuantity(1);
     setAddedAnimation(false);
+
+    if (product && Array.isArray(product.variants) && product.variants.length > 0) {
+      // Priorizar la primera variante comprable disponible, o la primera de la lista
+      const firstPurchasable = product.variants.find(isPurchasableVariant);
+      setSelectedVariantId(firstPurchasable ? firstPurchasable.id : product.variants[0].id);
+    } else {
+      setSelectedVariantId(null);
+    }
   }, [product]);
 
   useEffect(() => {
@@ -38,14 +55,35 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   if (!product) return null;
 
-  const isPriced = isPricedProduct(product);
-  const isAvailable = typeof product.stock === 'number' ? product.stock > 0 : false;
-  const canPurchase = isPurchasableProduct(product);
-  const maxStock = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 1;
+  const hasVariants = Boolean(Array.isArray(product.variants) && product.variants.length > 0);
+  const activeVariant = hasVariants && product.variants
+    ? product.variants.find((v) => v.id === selectedVariantId) || null
+    : null;
+
+  // Si tiene variantes, los precios y stock derivan estrictamente de la variante seleccionada
+  const isPriced = hasVariants
+    ? isPricedVariant(activeVariant)
+    : isPricedProduct(product);
+
+  const isAvailable = hasVariants
+    ? Boolean(activeVariant && typeof activeVariant.stock === 'number' && activeVariant.stock > 0 && activeVariant.status === 'active')
+    : (typeof product.stock === 'number' ? product.stock > 0 && product.status === 'active' : false);
+
+  const canPurchase = hasVariants
+    ? isPurchasableVariant(activeVariant)
+    : isPurchasableProduct(product);
+
+  const maxStock = hasVariants
+    ? (activeVariant && typeof activeVariant.stock === 'number' && activeVariant.stock > 0 ? activeVariant.stock : 1)
+    : (typeof product.stock === 'number' && product.stock > 0 ? product.stock : 1);
+
+  const unitPrice = hasVariants
+    ? (activeVariant ? activeVariant.priceCOP : null)
+    : product.priceCOP;
 
   const handleAdd = () => {
     if (!canPurchase) return;
-    onAddToCart(product, Math.min(quantity, maxStock));
+    onAddToCart(product, Math.min(quantity, maxStock), activeVariant || undefined);
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 1400);
   };
@@ -205,7 +243,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 color: 'var(--color-gold)'
               }}
             >
-              {(product.brand || 'ADARA PARFUM').toUpperCase()}{product.volume ? ` · ${product.volume.toUpperCase()}` : ''}
+              {(product.brand || 'ADARA PARFUM').toUpperCase()}{activeVariant ? ` · ${activeVariant.volume.toUpperCase()}` : product.volume ? ` · ${product.volume.toUpperCase()}` : ''}
             </div>
           </div>
 
@@ -306,6 +344,73 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               )}
             </div>
 
+            {/* Presentation / Variant Selector (Fase 2.5A) */}
+            {hasVariants && product.variants && product.variants.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--color-gold)', fontWeight: 600 }}>
+                    Seleccionar Presentación
+                  </span>
+                  {activeVariant && (
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                      {typeof activeVariant.stock === 'number' && activeVariant.stock > 0
+                        ? `${activeVariant.stock} ${activeVariant.stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`
+                        : 'Agotado'}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${product.variants.length}, 1fr)`, gap: '10px' }}>
+                  {product.variants.map((variant) => {
+                    const isSelected = variant.id === selectedVariantId;
+                    const variantPriced = isPricedVariant(variant);
+                    const variantPurchasable = isPurchasableVariant(variant);
+
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedVariantId(variant.id);
+                          setQuantity(1);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '12px 8px',
+                          borderRadius: '6px',
+                          border: isSelected
+                            ? '1px solid var(--color-gold)'
+                            : '1px solid var(--color-border)',
+                          backgroundColor: isSelected
+                            ? 'rgba(198, 161, 91, 0.12)'
+                            : 'rgba(255, 255, 255, 0.02)',
+                          color: isSelected ? 'var(--color-ivory)' : 'var(--color-text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          opacity: variantPurchasable ? 1 : 0.45
+                        }}
+                      >
+                        <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.05em', color: isSelected ? 'var(--color-gold-light)' : 'inherit' }}>
+                          {variant.volume}
+                        </span>
+                        <span style={{ fontSize: '11px', marginTop: '4px', color: isSelected ? 'var(--color-ivory)' : 'var(--color-text-tertiary)' }}>
+                          {variantPriced && typeof variant.priceCOP === 'number' ? formatCOP(variant.priceCOP) : 'Bajo consulta'}
+                        </span>
+                        {!variantPurchasable && (
+                          <span style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#ff6b6b', marginTop: '2px' }}>
+                            Agotado
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Price & Quantity Bar */}
             <div
               style={{
@@ -321,7 +426,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             >
               <div>
                 <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-text-tertiary)' }}>
-                  Total en COP
+                  {activeVariant ? `Total ${activeVariant.volume} en COP` : 'Total en COP'}
                 </span>
                 <p
                   style={{
@@ -331,7 +436,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     margin: 0
                   }}
                 >
-                  {isPriced ? formatCOP((product.priceCOP as number) * quantity) : 'Bajo consulta'}
+                  {isPriced && typeof unitPrice === 'number' ? formatCOP(unitPrice * quantity) : 'Bajo consulta'}
                 </p>
               </div>
 

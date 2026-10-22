@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { CartItem, Order } from '../../types';
+import { CartItem, Order, getCartItemKey } from '../../types';
 import { formatCOP } from '../../data/mockData';
 import { createWhatsAppOrder } from '../../services/orderInventoryService';
 import { X, Plus, Minus, Trash2, ArrowRight, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
@@ -8,11 +8,42 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
-  onUpdateQuantity: (productId: string, delta: number) => void;
-  onRemoveItem: (productId: string) => void;
+  onUpdateQuantity: (productId: string, delta: number, variantId?: string) => void;
+  onRemoveItem: (productId: string, variantId?: string) => void;
   onClearCart: () => void;
   onInitiateWhatsAppOrder?: (order: Order) => void;
 }
+
+// Helpers para resolver de forma segura datos de variante con compatibilidad retrospectiva
+export const getItemUnitPrice = (item: CartItem): number | null => {
+  if (typeof item.unitPriceCOP === 'number') {
+    return item.unitPriceCOP;
+  }
+  if (item.variantId && Array.isArray(item.product.variants)) {
+    const v = item.product.variants.find((vr) => vr.id === item.variantId);
+    if (v && typeof v.priceCOP === 'number') return v.priceCOP;
+  }
+  return typeof item.product.priceCOP === 'number' ? item.product.priceCOP : null;
+};
+
+export const getItemVolume = (item: CartItem): string => {
+  if (item.volume && item.volume.trim().length > 0) return item.volume;
+  if (item.variantId && Array.isArray(item.product.variants)) {
+    const v = item.product.variants.find((vr) => vr.id === item.variantId);
+    if (v && v.volume) return v.volume;
+  }
+  return item.product.volume || '';
+};
+
+export const getItemMaxStock = (item: CartItem): number => {
+  if (item.variantId && Array.isArray(item.product.variants)) {
+    const v = item.product.variants.find((vr) => vr.id === item.variantId);
+    if (v && typeof v.stock === 'number') {
+      return v.stock;
+    }
+  }
+  return typeof item.product.stock === 'number' ? item.product.stock : 99;
+};
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
@@ -39,16 +70,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const hasUnpricedItems = items.some((item) => !item.product.priceCOP || item.product.priceCOP <= 0);
-  const hasOverstockItems = items.some(
-    (item) => typeof item.product.stock === 'number' && item.quantity > item.product.stock
-  );
+  const hasUnpricedItems = items.some((item) => {
+    const price = getItemUnitPrice(item);
+    return price === null || price <= 0;
+  });
+
+  const hasOverstockItems = items.some((item) => {
+    const maxStock = getItemMaxStock(item);
+    return item.quantity > maxStock;
+  });
+
   const canCheckout = items.length > 0 && !hasUnpricedItems && !hasOverstockItems;
 
-  const subtotal = items.reduce(
-    (acc, item) => acc + (item.product.priceCOP && item.product.priceCOP > 0 ? item.product.priceCOP * item.quantity : 0),
-    0
-  );
+  const subtotal = items.reduce((acc, item) => {
+    const price = getItemUnitPrice(item);
+    return acc + (price && price > 0 ? price * item.quantity : 0);
+  }, 0);
+
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
 
   // Generate WhatsApp order message with verified price checks & register pending order safely
@@ -63,10 +101,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     const orderLines = items
       .map((item) => {
-        const lineTotal = item.product.priceCOP ? formatCOP(item.product.priceCOP * item.quantity) : 'Bajo consulta';
-        return `• ${item.product.name} (x${item.quantity}) - ${lineTotal}`;
+        const unitPrice = getItemUnitPrice(item);
+        const volume = getItemVolume(item);
+        const volumeStr = volume ? ` [${volume}]` : '';
+        const lineTotal = typeof unitPrice === 'number' && unitPrice > 0
+          ? formatCOP(unitPrice * item.quantity)
+          : 'Bajo consulta';
+        const unitPriceStr = typeof unitPrice === 'number' && unitPrice > 0
+          ? ` (${formatCOP(unitPrice)} c/u)`
+          : '';
+        return `• ${item.product.name}${volumeStr} (x${item.quantity}) - ${lineTotal}${unitPriceStr}`;
       })
       .join('%0A');
+
     const message = `Hola ADARA PARFUM, deseo coordinar mi pedido:%0A%0A${orderLines}%0A%0A*Total Estimado:* ${formatCOP(subtotal)}%0A%0A¿Tienen disponibilidad para despacho inmediato?`;
     window.open(`https://wa.me/573000000000?text=${message}`, '_blank');
   };
@@ -205,135 +252,164 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {items.map((item) => (
-                <div
-                  key={item.product.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '72px 1fr auto',
-                    gap: '16px',
-                    alignItems: 'center',
-                    paddingBottom: '20px',
-                    borderBottom: '1px solid rgba(56, 48, 36, 0.4)'
-                  }}
-                >
-                  {/* Thumbnail & Fallback */}
+              {items.map((item) => {
+                const itemKey = getCartItemKey(item.product.id, item.variantId);
+                const volume = getItemVolume(item);
+                const unitPrice = getItemUnitPrice(item);
+                const maxStock = getItemMaxStock(item);
+
+                return (
                   <div
+                    key={itemKey}
                     style={{
-                      width: '72px',
-                      height: '84px',
-                      borderRadius: '4px',
-                      overflow: 'hidden',
-                      backgroundColor: '#141412',
-                      position: 'relative',
-                      display: 'flex',
+                      display: 'grid',
+                      gridTemplateColumns: '72px 1fr auto',
+                      gap: '16px',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      paddingBottom: '20px',
+                      borderBottom: '1px solid rgba(56, 48, 36, 0.4)'
                     }}
                   >
-                    {item.product.image ? (
-                      <img
-                        src={item.product.image}
-                        alt={item.product.name}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '4px' }}>
-                        <span style={{ fontSize: '9px', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                          ADARA
+                    {/* Thumbnail & Fallback */}
+                    <div
+                      style={{
+                        width: '72px',
+                        height: '84px',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        backgroundColor: '#141412',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {item.product.image ? (
+                        <img
+                          src={item.product.image}
+                          alt={item.product.name}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '4px' }}>
+                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            ADARA
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div>
+                      <h4 style={{ fontSize: '15px', margin: 0, color: 'var(--color-ivory)' }}>
+                        {item.product.name}
+                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
+                        {volume && (
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              padding: '2px 6px',
+                              borderRadius: '3px',
+                              backgroundColor: 'rgba(198, 161, 91, 0.15)',
+                              color: 'var(--color-gold)',
+                              border: '1px solid rgba(198, 161, 91, 0.3)'
+                            }}
+                          >
+                            {volume}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                          {item.product.brand || 'ADARA PARFUM'}
                         </span>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Info */}
-                  <div>
-                    <h4 style={{ fontSize: '15px', margin: 0, color: 'var(--color-ivory)' }}>
-                      {item.product.name}
-                    </h4>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                      {item.product.volume || item.product.brand || 'Colección ADARA'}
-                    </span>
-                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-gold)', margin: '4px 0 8px' }}>
-                      {item.product.priceCOP && item.product.priceCOP > 0 ? (
-                        formatCOP(item.product.priceCOP)
-                      ) : (
-                        <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
-                          Bajo consulta
-                        </span>
-                      )}
-                    </p>
-
-                    {/* Stepper with stock clamping */}
-                    {(() => {
-                      const maxStock = typeof item.product.stock === 'number' && item.product.stock > 0 ? item.product.stock : 99;
-                      return (
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            backgroundColor: 'rgba(11, 11, 10, 0.6)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '3px'
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => onUpdateQuantity(item.product.id, -1)}
-                            style={{ background: 'none', border: 'none', color: 'var(--color-ivory)', padding: '4px 8px', cursor: 'pointer' }}
-                            aria-label="Restar una unidad"
-                          >
-                            <Minus size={11} />
-                          </button>
-                          <span style={{ fontSize: '12px', minWidth: '18px', textAlign: 'center', fontWeight: 600 }}>
-                            {item.quantity}
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-gold)', margin: '6px 0 8px' }}>
+                        {unitPrice && unitPrice > 0 ? (
+                          <>
+                            <span>{formatCOP(unitPrice * item.quantity)}</span>
+                            {item.quantity > 1 && (
+                              <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', fontWeight: 400, marginLeft: '6px' }}>
+                                ({formatCOP(unitPrice)} c/u)
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
+                            Bajo consulta
                           </span>
-                          <button
-                            type="button"
-                            disabled={item.quantity >= maxStock}
-                            onClick={() => onUpdateQuantity(item.product.id, 1)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: item.quantity >= maxStock ? 'var(--color-text-tertiary)' : 'var(--color-ivory)',
-                              padding: '4px 8px',
-                              cursor: item.quantity >= maxStock ? 'not-allowed' : 'pointer'
-                            }}
-                            aria-label="Sumar una unidad"
-                          >
-                            <Plus size={11} />
-                          </button>
-                        </div>
-                      );
-                    })()}
-                  </div>
+                        )}
+                      </p>
 
-                  {/* Remove Button */}
-                  <button
-                    type="button"
-                    onClick={() => onRemoveItem(item.product.id)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-text-tertiary)',
-                      padding: '8px',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-danger)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
-                    aria-label={`Eliminar ${item.product.name} de la bolsa`}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+                      {/* Stepper with stock clamping */}
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          backgroundColor: 'rgba(11, 11, 10, 0.6)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '3px'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onUpdateQuantity(item.product.id, -1, item.variantId)}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-ivory)', padding: '4px 8px', cursor: 'pointer' }}
+                          aria-label="Restar una unidad"
+                        >
+                          <Minus size={11} />
+                        </button>
+                        <span style={{ fontSize: '12px', minWidth: '18px', textAlign: 'center', fontWeight: 600 }}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={item.quantity >= maxStock}
+                          onClick={() => onUpdateQuantity(item.product.id, 1, item.variantId)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: item.quantity >= maxStock ? 'var(--color-text-tertiary)' : 'var(--color-ivory)',
+                            padding: '4px 8px',
+                            cursor: item.quantity >= maxStock ? 'not-allowed' : 'pointer'
+                          }}
+                          aria-label="Sumar una unidad"
+                        >
+                          <Plus size={11} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Remove Button */}
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(item.product.id, item.variantId)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-text-tertiary)',
+                        padding: '8px',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-danger)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
+                      aria-label={`Eliminar ${item.product.name} de la bolsa`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

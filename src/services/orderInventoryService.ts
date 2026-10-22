@@ -3,7 +3,9 @@ import {
   Order,
   OrderItem,
   OrderStatus,
-  CartItem
+  CartItem,
+  PaymentMethod,
+  SalesChannel
 } from '../types';
 import { InventoryMovement } from '../types/firestore';
 
@@ -600,20 +602,46 @@ export function transitionOrderStatus(
   };
 }
 
+export interface CreateBaseOrderParams {
+  cartItems: CartItem[];
+  channel?: SalesChannel;
+  paymentMethod?: PaymentMethod;
+  customerName?: string;
+  customerPhone?: string;
+  customerCity?: string;
+  notes?: string;
+  referencePrefix?: string;
+}
+
 /**
- * Crea un pedido originado en la tienda web mediante WhatsApp en estado 'pending'
- * SIN descontar inventario prematuramente.
+ * Crea un pedido desacoplado del canal o pasarela de pago.
+ * Valida variantes, cantidades y precios unitarios.
+ * Inicia en estado 'pending' con inventoryDeducted: false.
  */
-export function createWhatsAppOrder(
-  cartItems: CartItem[],
-  customerPhone?: string
+export function createBaseOrder(
+  params: CreateBaseOrderParams
 ): { success: boolean; order?: Order; error?: string } {
+  const {
+    cartItems,
+    channel = 'Tienda Web',
+    paymentMethod,
+    customerName = 'Cliente Tienda Web',
+    customerPhone = '',
+    customerCity = 'Por coordinar',
+    notes = '',
+    referencePrefix = 'AD'
+  } = params;
+
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     return { success: false, error: 'El carrito está vacío.' };
   }
 
   for (const item of cartItems) {
-    if (!item.product.priceCOP || item.product.priceCOP <= 0) {
+    const unitPrice = typeof item.unitPriceCOP === 'number'
+      ? item.unitPriceCOP
+      : (item.product.priceCOP || null);
+
+    if (unitPrice === null || unitPrice <= 0) {
       return {
         success: false,
         error: `El producto '${item.product.name}' requiere consulta de precio.`
@@ -624,32 +652,77 @@ export function createWhatsAppOrder(
     }
   }
 
-  const items: OrderItem[] = cartItems.map((ci) => ({
-    productId: ci.product.id,
-    productName: `${ci.product.name}${ci.product.volume ? ` (${ci.product.volume})` : ''}`,
-    quantity: ci.quantity,
-    unitPriceCOP: ci.product.priceCOP!
-  }));
+  const items: OrderItem[] = cartItems.map((ci) => {
+    const unitPrice = typeof ci.unitPriceCOP === 'number' && ci.unitPriceCOP > 0
+      ? ci.unitPriceCOP
+      : (ci.product.priceCOP || 0);
+
+    const volume = ci.volume || ci.product.volume || undefined;
+    const displayName = volume
+      ? `${ci.product.name} (${volume})`
+      : ci.product.name;
+
+    return {
+      productId: ci.product.id,
+      variantId: ci.variantId || undefined,
+      volume,
+      productName: displayName,
+      quantity: ci.quantity,
+      unitPriceCOP: unitPrice
+    };
+  });
 
   const totalCOP = items.reduce((acc, it) => acc + it.quantity * it.unitPriceCOP, 0);
   const now = getColombiaNowString();
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
 
   const order: Order = {
-    id: `ord-wa-${Date.now()}`,
-    reference: `AD-WA-${randomSuffix}`,
+    id: `ord-${Date.now()}-${randomSuffix}`,
+    reference: `${referencePrefix}-${randomSuffix}`,
     date: now,
-    customerName: 'Cliente WhatsApp (Tienda Web)',
-    customerPhone: customerPhone || '',
-    customerCity: 'Por coordinar',
-    channel: 'WhatsApp',
+    customerName,
+    customerPhone,
+    customerCity,
+    channel,
     items,
     totalCOP,
+    expectedAmountCOP: totalCOP,
+    currency: 'COP',
+    paymentMethod,
     paymentStatus: 'pending',
     orderStatus: 'pending',
-    inventoryDeducted: false, // NO se descuenta inventario por abrir WhatsApp
-    notes: 'Pedido iniciado desde el catálogo web vía WhatsApp. Pendiente de atención por concierge.'
+    inventoryDeducted: false, // Regla de integridad: el stock solo se descuenta tras confirmación efectiva
+    notes
   };
 
   return { success: true, order };
+}
+
+/**
+ * Crea un pedido originado en la tienda web mediante WhatsApp en estado 'pending'
+ * SIN descontar inventario prematuramente.
+ */
+export function createWhatsAppOrder(
+  cartItems: CartItem[],
+  customerPhone?: string
+): { success: boolean; order?: Order; error?: string } {
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const res = createBaseOrder({
+    cartItems,
+    channel: 'WhatsApp',
+    paymentMethod: 'whatsapp_concierge',
+    customerName: 'Cliente WhatsApp (Tienda Web)',
+    customerPhone: customerPhone || '',
+    customerCity: 'Por coordinar',
+    notes: 'Pedido iniciado desde el catálogo web vía WhatsApp. Pendiente de atención por concierge.',
+    referencePrefix: 'AD-WA'
+  });
+
+  if (!res.success || !res.order) return res;
+
+  // Garantizar prefijo exacto de referencia histórica para WhatsApp
+  res.order.id = `ord-wa-${Date.now()}`;
+  res.order.reference = `AD-WA-${randomSuffix}`;
+
+  return res;
 }
