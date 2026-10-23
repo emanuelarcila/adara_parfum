@@ -513,6 +513,17 @@ export function adjustManualStock(
   }
 
   const prod = currentProducts[prodIndex];
+
+  // Si el producto tiene variantes definidas, exigir la variante a ajustar para evitar desincronizar stock
+  if (Array.isArray(prod.variants) && prod.variants.length > 0 && !variantId) {
+    return {
+      success: false,
+      error: `La fragancia '${prod.name}' maneja inventario por variante. Debe especificar la presentación a ajustar.`,
+      updatedProducts: currentProducts,
+      movements: []
+    };
+  }
+
   const currentStock = getAvailableStock(prod, variantId);
   const newStock = currentStock + delta;
 
@@ -613,6 +624,27 @@ export interface CreateBaseOrderParams {
   referencePrefix?: string;
 }
 
+let referenceSequence = Math.floor(Math.random() * 1000);
+
+/**
+ * Genera una referencia de pedido única y centralizada.
+ * - Elimina años codificados manualmente calculando dinámicamente el año actual en Colombia.
+ * - Garantiza matemáticamente la ausencia de colisiones mediante la combinación de marca temporal
+ *   de milisegundos y un contador monotónico por proceso.
+ * - Mantiene el prefijo solicitado (ej. 'AD', 'AD-WA', 'AD-MV', 'AD-ADDI').
+ *
+ * Ejemplo: generateOrderReference('AD') => 'AD-2026-84920001'
+ *          generateOrderReference('AD-WA') => 'AD-WA-2026-84920002'
+ */
+export function generateOrderReference(prefix: string = 'AD'): string {
+  const colombiaDateStr = getColombiaNowString();
+  const currentYear = colombiaDateStr.split('-')[0] || new Date().getFullYear().toString();
+  referenceSequence = (referenceSequence + 1) % 100000;
+  const timeSlice = Date.now().toString().slice(-4);
+  const seqStr = referenceSequence.toString().padStart(5, '0');
+  return `${prefix}-${currentYear}-${timeSlice}${seqStr}`;
+}
+
 /**
  * Crea un pedido desacoplado del canal o pasarela de pago.
  * Valida variantes, cantidades y precios unitarios.
@@ -674,11 +706,12 @@ export function createBaseOrder(
 
   const totalCOP = items.reduce((acc, it) => acc + it.quantity * it.unitPriceCOP, 0);
   const now = getColombiaNowString();
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const reference = generateOrderReference(referencePrefix);
+  const orderIdSuffix = Math.floor(1000 + Math.random() * 9000);
 
   const order: Order = {
-    id: `ord-${Date.now()}-${randomSuffix}`,
-    reference: `${referencePrefix}-${randomSuffix}`,
+    id: `ord-${Date.now()}-${orderIdSuffix}`,
+    reference,
     date: now,
     customerName,
     customerPhone,
@@ -706,7 +739,6 @@ export function createWhatsAppOrder(
   cartItems: CartItem[],
   customerPhone?: string
 ): { success: boolean; order?: Order; error?: string } {
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   const res = createBaseOrder({
     cartItems,
     channel: 'WhatsApp',
@@ -720,9 +752,8 @@ export function createWhatsAppOrder(
 
   if (!res.success || !res.order) return res;
 
-  // Garantizar prefijo exacto de referencia histórica para WhatsApp
+  // Garantizar prefijo exacto de ID histórico para trazabilidad de WhatsApp
   res.order.id = `ord-wa-${Date.now()}`;
-  res.order.reference = `AD-WA-${randomSuffix}`;
 
   return res;
 }

@@ -1,21 +1,64 @@
 import React, { useState } from 'react';
-import { Product, Order, SalesChannel, PaymentStatus } from '../../types';
+import {
+  Product,
+  ProductVariantItem,
+  Order,
+  SalesChannel,
+  PaymentStatus,
+  CartItem
+} from '../../types';
 import { formatCOP } from '../../data/mockData';
+import { createBaseOrder, getColombiaNowString } from '../../services/orderInventoryService';
 import { Plus, Trash2, CheckCircle2, User, Phone, MapPin } from 'lucide-react';
 
 interface AdminManualSaleProps {
   products: Product[];
-  onCompleteSale: (newOrder: Order) => void;
+  onCompleteSale: (newOrder: Order) => boolean | void;
+  /** Muestra un mensaje de error tipo toast desde el padre. */
+  onError?: (message: string) => void;
 }
 
+/**
+ * Una línea del formulario de venta manual.
+ * variantId es opcional: solo existe cuando el producto seleccionado tiene variantes.
+ */
 interface SaleLine {
   productId: string;
+  /** ID de variante seleccionada (solo cuando el producto tiene variants). */
+  variantId: string | undefined;
   quantity: number;
+}
+
+/** Devuelve las variantes activas de un producto, o [] si no tiene variantes. */
+function getActiveVariants(product: Product | undefined): ProductVariantItem[] {
+  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) return [];
+  return product.variants.filter((v) => v.status === 'active' || v.status === 'sold-out');
+}
+
+/** Precio unitario para la línea: preferencia variante > producto padre. */
+function getLineUnitPrice(product: Product | undefined, variantId: string | undefined): number {
+  if (!product) return 0;
+  if (variantId && Array.isArray(product.variants)) {
+    const v = product.variants.find((vr) => vr.id === variantId);
+    if (v && typeof v.priceCOP === 'number' && v.priceCOP > 0) return v.priceCOP;
+  }
+  return typeof product.priceCOP === 'number' && product.priceCOP > 0 ? product.priceCOP : 0;
+}
+
+/** Stock disponible para la línea: variante si aplica, producto padre si no. */
+function getLineStock(product: Product | undefined, variantId: string | undefined): number {
+  if (!product) return 0;
+  if (variantId && Array.isArray(product.variants)) {
+    const v = product.variants.find((vr) => vr.id === variantId);
+    if (v && typeof v.stock === 'number') return v.stock;
+  }
+  return typeof product.stock === 'number' ? product.stock : 0;
 }
 
 export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
   products,
-  onCompleteSale
+  onCompleteSale,
+  onError
 }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -24,96 +67,179 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('paid');
   const [paymentMethod, setPaymentMethod] = useState('Transferencia Bancolombia / Nequi');
   const [notes, setNotes] = useState('');
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  // Initial line
+  const firstProductId = products[0]?.id || '';
+  const firstVariant = getActiveVariants(products[0])?.[0];
+
   const [lines, setLines] = useState<SaleLine[]>([
-    { productId: products[0]?.id || '', quantity: 1 }
+    {
+      productId: firstProductId,
+      variantId: firstVariant?.id,
+      quantity: 1
+    }
   ]);
 
-  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  // ── Handlers de líneas ──────────────────────────────────────────────────
 
-  // Add line
   const handleAddLine = () => {
-    setLines([...lines, { productId: products[0]?.id || '', quantity: 1 }]);
+    const firstV = getActiveVariants(products[0])?.[0];
+    setLines((prev) => [
+      ...prev,
+      { productId: firstProductId, variantId: firstV?.id, quantity: 1 }
+    ]);
   };
 
-  // Remove line
   const handleRemoveLine = (index: number) => {
     if (lines.length === 1) return;
-    setLines(lines.filter((_, i) => i !== index));
+    setLines((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Update line product
   const handleUpdateLineProduct = (index: number, productId: string) => {
-    const next = [...lines];
-    next[index].productId = productId;
-    setLines(next);
+    const product = products.find((p) => p.id === productId);
+    const firstV = getActiveVariants(product)?.[0];
+    setLines((prev) =>
+      prev.map((line, i) =>
+        i === index
+          ? { productId, variantId: firstV?.id, quantity: 1 }
+          : line
+      )
+    );
   };
 
-  // Update line quantity
+  const handleUpdateLineVariant = (index: number, variantId: string) => {
+    setLines((prev) =>
+      prev.map((line, i) =>
+        i === index ? { ...line, variantId, quantity: 1 } : line
+      )
+    );
+  };
+
   const handleUpdateLineQuantity = (index: number, delta: number) => {
-    const next = [...lines];
-    const newQty = Math.max(1, next[index].quantity + delta);
-    next[index].quantity = newQty;
-    setLines(next);
+    const line = lines[index];
+    const product = products.find((p) => p.id === line.productId);
+    const maxStock = getLineStock(product, line.variantId);
+    // Limitar al stock disponible (máx 99 si no hay stock definido)
+    const effectiveMax = maxStock > 0 ? maxStock : 99;
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (i !== index) return l;
+        const newQty = Math.max(1, Math.min(l.quantity + delta, effectiveMax));
+        return { ...l, quantity: newQty };
+      })
+    );
   };
 
-  // Calculate Subtotal safely
+  // ── Cálculos de vista ───────────────────────────────────────────────────
+
   const lineDetails = lines.map((line) => {
-    const p = products.find((prod) => prod.id === line.productId) || products[0];
-    const unitPrice = p && p.priceCOP ? p.priceCOP : 0;
+    const product = products.find((p) => p.id === line.productId) || products[0];
+    const variant = line.variantId
+      ? product?.variants?.find((v) => v.id === line.variantId)
+      : undefined;
+    const unitPrice = getLineUnitPrice(product, line.variantId);
+    const stock = getLineStock(product, line.variantId);
     const subtotal = unitPrice * line.quantity;
-    return { ...line, product: p, subtotal, unitPrice };
+    const volume = variant?.volume || product?.volume || undefined;
+    return { ...line, product, variant, unitPrice, stock, subtotal, volume };
   });
 
-  const grandTotal = lineDetails.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const grandTotal = lineDetails.reduce((acc, d) => acc + d.subtotal, 0);
+  const totalUnits = lines.reduce((acc, l) => acc + l.quantity, 0);
+
+  // ── Submit ──────────────────────────────────────────────────────────────
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName.trim() || lines.length === 0) return;
+    setLocalError(null);
 
-    // Validar existencias físicas disponibles antes de crear la orden
-    for (const l of lineDetails) {
-      if (typeof l.product.stock === 'number' && l.quantity > l.product.stock) {
-        alert(`Stock insuficiente para '${l.product.name}'. Disponibles en taller: ${l.product.stock}, solicitadas: ${l.quantity}.`);
+    if (!customerName.trim()) {
+      setLocalError('El nombre del cliente es obligatorio.');
+      return;
+    }
+
+    // Validación de stock y precio antes de construir la orden
+    for (const d of lineDetails) {
+      if (!d.product) {
+        setLocalError('Hay líneas con un producto no válido.');
+        return;
+      }
+      if (d.unitPrice <= 0) {
+        const label = d.variant
+          ? `${d.product.name} (${d.variant.volume})`
+          : d.product.name;
+        setLocalError(
+          `'${label}' no tiene precio definido. Define el precio en el catálogo antes de registrar la venta.`
+        );
+        return;
+      }
+      if (d.quantity > d.stock) {
+        const label = d.variant
+          ? `${d.product.name} (${d.variant.volume})`
+          : d.product.name;
+        setLocalError(
+          `Stock insuficiente para '${label}'. Disponibles en taller: ${d.stock} uds, solicitadas: ${d.quantity}.`
+        );
         return;
       }
     }
 
-    const orderReference = `AD-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
-      reference: orderReference,
-      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      customerName,
-      customerPhone: customerPhone || '+57 300 000 0000',
-      customerCity,
+    // Construir CartItem[] para usar createBaseOrder (centraliza la referencia y el ID)
+    const cartItems: CartItem[] = lineDetails.map((d) => ({
+      product: d.product!,
+      variantId: d.variantId,
+      volume: d.volume,
+      unitPriceCOP: d.unitPrice,
+      quantity: d.quantity
+    }));
+
+    const baseRes = createBaseOrder({
+      cartItems,
       channel,
-      items: lineDetails.map((l) => ({
-        productId: l.product.id,
-        productName: `${l.product.name}${l.product.volume ? ` (${l.product.volume})` : ''}`,
-        quantity: l.quantity,
-        unitPriceCOP: l.unitPrice
-      })),
-      totalCOP: grandTotal,
-      paymentStatus,
+      paymentMethod: paymentMethod as any,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim() || '',
+      customerCity: customerCity.trim() || 'Por coordinar',
+      notes: notes ? `${notes} · Método: ${paymentMethod}` : `Método: ${paymentMethod}`,
+      referencePrefix: 'AD-MV'
+    });
+
+    if (!baseRes.success || !baseRes.order) {
+      const msg = baseRes.error || 'No fue posible crear el pedido.';
+      setLocalError(msg);
+      if (onError) onError(msg);
+      return;
+    }
+
+    // La venta manual se registra directamente en estado 'preparing'
+    // con inventoryDeducted: true (registerManualSale en App.tsx descontará el stock)
+    const finalOrder: Order = {
+      ...baseRes.order,
       orderStatus: 'preparing',
+      paymentStatus,
       inventoryDeducted: true,
-      notes: notes ? `${notes} · Método: ${paymentMethod}` : `Método: ${paymentMethod}`
+      date: getColombiaNowString()
     };
 
-    onCompleteSale(newOrder);
+    const saleSuccess = onCompleteSale(finalOrder);
+    if (saleSuccess === false) {
+      // La operación fue rechazada por App.tsx (ej. stock insuficiente), no mostrar éxito ni limpiar
+      return;
+    }
     setFeedbackSuccess(true);
 
-    // Reset Form
     setTimeout(() => {
       setFeedbackSuccess(false);
       setCustomerName('');
       setCustomerPhone('');
       setNotes('');
-      setLines([{ productId: products[0]?.id || '', quantity: 1 }]);
-    }, 2000);
+      const firstV = getActiveVariants(products[0])?.[0];
+      setLines([{ productId: firstProductId, variantId: firstV?.id, quantity: 1 }]);
+    }, 2200);
   };
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -126,6 +252,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
         </p>
       </div>
 
+      {/* Feedback de éxito */}
       {feedbackSuccess && (
         <div
           className="liquid-glass animate-rise"
@@ -147,14 +274,30 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
         </div>
       )}
 
+      {/* Error local (no usa alert()) */}
+      {localError && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(248, 113, 113, 0.12)',
+            border: '1px solid rgba(248, 113, 113, 0.35)',
+            color: 'var(--color-danger)',
+            fontSize: '13px'
+          }}
+        >
+          ⚠ {localError}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Step 1: Customer & Channel Details */}
+        {/* Step 1: Datos del comprador */}
         <div
           className="liquid-glass-card"
           style={{ padding: '28px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '20px' }}
         >
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-gold)', fontWeight: 600 }}>
-            1. Datos del Comprador & Canal
+            1. Datos del Comprador &amp; Canal
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="responsive-3col">
@@ -168,7 +311,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
                   type="text"
                   placeholder="Ej: Camila Echeverri"
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
+                  onChange={(e) => { setCustomerName(e.target.value); setLocalError(null); }}
                   required
                   style={{ background: 'none', border: 'none', color: '#fff', fontSize: '13px', width: '100%', outline: 'none' }}
                 />
@@ -258,7 +401,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
           </div>
         </div>
 
-        {/* Step 2: Multi-line Fragrance Selector */}
+        {/* Step 2: Fragancias del pedido */}
         <div
           className="liquid-glass-card"
           style={{ padding: '28px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '20px' }}
@@ -267,7 +410,6 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
             <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-gold)', fontWeight: 600 }}>
               2. Fragancias del Pedido (Multi-línea)
             </div>
-
             <button
               type="button"
               onClick={handleAddLine}
@@ -291,114 +433,137 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {lineDetails.map((line, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(220px, 1.8fr) 110px 140px 40px',
-                  gap: '14px',
-                  alignItems: 'center',
-                  padding: '12px',
-                  borderRadius: '6px',
-                  backgroundColor: 'rgba(11, 11, 10, 0.7)',
-                  border: '1px solid var(--color-border)'
-                }}
-              >
-                {/* Product Select */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
-                    Fragancia
-                  </label>
-                  <select
-                    value={line.productId}
-                    onChange={(e) => handleUpdateLineProduct(idx, e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      backgroundColor: '#1a1a18',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      fontSize: '13px',
-                      outline: 'none'
-                    }}
-                  >
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}{p.volume ? ` · ${p.volume}` : ''} — {p.priceCOP && p.priceCOP > 0 ? formatCOP(p.priceCOP) : 'Bajo consulta'} · (Stock: {p.stock} uds)
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {lineDetails.map((line, idx) => {
+              const variants = getActiveVariants(line.product);
+              const hasVariants = variants.length > 0;
+              const isOverStock = line.quantity > line.stock && line.stock > 0;
 
-                {/* Quantity Stepper */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
-                    Cantidad
-                  </label>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      backgroundColor: '#1a1a18',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '4px'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateLineQuantity(idx, -1)}
-                      style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 10px' }}
-                    >
-                      -
-                    </button>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: '12px', fontWeight: 600 }}>
-                      {line.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateLineQuantity(idx, 1)}
-                      style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 10px' }}
-                    >
-                      +
-                    </button>
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    padding: '14px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(11, 11, 10, 0.7)',
+                    border: isOverStock
+                      ? '1px solid rgba(248, 113, 113, 0.5)'
+                      : '1px solid var(--color-border)'
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.6fr) minmax(140px, 1fr) 100px 120px 36px', gap: '12px', alignItems: 'end' }}>
+                    {/* Selector de producto */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                        Fragancia
+                      </label>
+                      <select
+                        value={line.productId}
+                        onChange={(e) => { handleUpdateLineProduct(idx, e.target.value); setLocalError(null); }}
+                        style={{ width: '100%', padding: '8px 10px', backgroundColor: '#1a1a18', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                      >
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}{p.volume && !Array.isArray(p.variants) ? ` · ${p.volume}` : ''} — (Stock: {p.stock} uds)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Selector de variante (solo si el producto tiene variantes) */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                        Presentación
+                      </label>
+                      {hasVariants ? (
+                        <select
+                          value={line.variantId || ''}
+                          onChange={(e) => { handleUpdateLineVariant(idx, e.target.value); setLocalError(null); }}
+                          style={{ width: '100%', padding: '8px 10px', backgroundColor: '#1a1a18', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                        >
+                          {variants.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.volume} — {v.priceCOP && v.priceCOP > 0 ? formatCOP(v.priceCOP) : 'Bajo consulta'} (Stock: {v.stock})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div style={{ padding: '8px 10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '12px', color: 'var(--color-text-tertiary)' }}>
+                          {line.product?.volume || 'Presentación única'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stepper de cantidad con límite de stock */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                        Cantidad
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1a1a18', border: '1px solid var(--color-border)', borderRadius: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateLineQuantity(idx, -1)}
+                          style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 10px' }}
+                        >-</button>
+                        <span style={{ flex: 1, textAlign: 'center', fontSize: '12px', fontWeight: 600 }}>{line.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateLineQuantity(idx, 1)}
+                          disabled={line.stock > 0 && line.quantity >= line.stock}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: line.stock > 0 && line.quantity >= line.stock ? 'var(--color-text-tertiary)' : '#fff',
+                            padding: '6px 10px'
+                          }}
+                        >+</button>
+                      </div>
+                    </div>
+
+                    {/* Subtotal */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
+                        Subtotal
+                      </label>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: line.unitPrice > 0 ? 'var(--color-gold)' : 'var(--color-text-tertiary)', paddingTop: '6px' }}>
+                        {line.unitPrice > 0 ? formatCOP(line.subtotal) : 'Sin precio'}
+                      </div>
+                    </div>
+
+                    {/* Eliminar fila */}
+                    <div style={{ paddingBottom: '2px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLine(idx)}
+                        disabled={lines.length === 1}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: lines.length === 1 ? 'var(--color-text-tertiary)' : 'var(--color-danger)',
+                          padding: '4px',
+                          opacity: lines.length === 1 ? 0.3 : 1
+                        }}
+                        title="Eliminar fila"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Line Subtotal */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>
-                    Subtotal
-                  </label>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-gold)', paddingTop: '6px' }}>
-                    {formatCOP(line.subtotal)}
-                  </div>
+                  {/* Advertencia de stock */}
+                  {isOverStock && (
+                    <div style={{ fontSize: '11px', color: 'var(--color-danger)', padding: '4px 6px', backgroundColor: 'rgba(248,113,113,0.08)', borderRadius: '3px' }}>
+                      ⚠ Stock disponible: {line.stock} uds. Reduce la cantidad.
+                    </div>
+                  )}
                 </div>
-
-                {/* Remove button */}
-                <div style={{ paddingTop: '16px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveLine(idx)}
-                    disabled={lines.length === 1}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: lines.length === 1 ? 'var(--color-text-tertiary)' : 'var(--color-danger)',
-                      padding: '4px',
-                      opacity: lines.length === 1 ? 0.3 : 1
-                    }}
-                    title="Eliminar fila"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Notes */}
+          {/* Notas */}
           <div>
             <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
               Notas u Observaciones del Pedido
@@ -413,7 +578,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
           </div>
         </div>
 
-        {/* Total Calculation & Confirm Button */}
+        {/* Total y confirmar */}
         <div
           className="liquid-glass"
           style={{
@@ -434,7 +599,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
               {formatCOP(grandTotal)}
             </div>
             <span style={{ fontSize: '11px', color: 'var(--color-gold)' }}>
-              {lines.reduce((acc, l) => acc + l.quantity, 0)} frascos de extracto seleccionados
+              {totalUnits} frasco{totalUnits !== 1 ? 's' : ''} seleccionado{totalUnits !== 1 ? 's' : ''}
             </span>
           </div>
 
@@ -457,7 +622,7 @@ export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
             }}
           >
             <CheckCircle2 size={18} />
-            <span>Confirmar & Registrar Venta</span>
+            <span>Confirmar &amp; Registrar Venta</span>
           </button>
         </div>
       </form>

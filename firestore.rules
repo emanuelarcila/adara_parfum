@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // REGLA POR DEFECTO: DENEGACIÓN TOTAL (FAIL-CLOSED)
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // FUNCIONES AUXILIARES DE AUTENTICACIÓN Y ROLES
+    // =========================================================================
+
+    // Verifica que el usuario haya iniciado sesión mediante Firebase Authentication
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Verifica que el usuario tenga privilegios administrativos activos
+    // Criterio dual: Custom Claim de Firebase Auth o documento en colección /admins/
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================================
+    // VALIDACIONES DE ESTRUCTURA Y DOMINIO
+    // =========================================================================
+
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.brand is string && data.brand.size() > 0 &&
+             data.status in ['active', 'draft', 'paused', 'sold-out'] &&
+             (data.priceCOP == null || (data.priceCOP is number && data.priceCOP > 0)) &&
+             (data.stock is int && data.stock >= 0) &&
+             (!('threshold' in data) || (data.threshold is int && data.threshold >= 0)) &&
+             (!('variants' in data) || data.variants is list);
+    }
+
+    function isValidOrder(data) {
+      return data.reference is string && data.reference.size() >= 5 &&
+             data.customerName is string && data.customerName.size() > 0 &&
+             data.items is list && data.items.size() > 0 &&
+             data.totalCOP is number && data.totalCOP > 0 &&
+             data.orderStatus in ['pending', 'preparing', 'shipped', 'delivered', 'cancelled'] &&
+             data.paymentStatus in ['pending', 'paid', 'on_delivery'] &&
+             data.inventoryDeducted is bool;
+    }
+
+    function isValidInventoryMovement(data) {
+      return data.productId is string && data.productId.size() > 0 &&
+             data.productName is string &&
+             data.previousStock is int && data.previousStock >= 0 &&
+             data.delta is int &&
+             data.newStock is int && data.newStock >= 0 &&
+             data.reason is string && data.reason.size() > 0 &&
+             data.adminUid == request.auth.uid;
+    }
+
+    // =========================================================================
+    // COLECCIÓN: /products/{productId}
+    // =========================================================================
+    match /products/{productId} {
+      // Lectura pública permitida únicamente para fragancias activas.
+      // Los administradores autenticados pueden consultar borradores, pausados y agotados.
+      allow read: if resource.data.status == 'active' || isAdmin();
+
+      // Altas, modificaciones y bajas restringidas exclusivamente a administradores verificados.
+      allow create: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if isAdmin() && isValidProduct(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // COLECCIÓN: /orders/{orderId}
+    // =========================================================================
+    match /orders/{orderId} {
+      // Solo el personal administrativo puede listar o inspeccionar pedidos
+      allow read: if isAdmin();
+
+      // Creación permitida:
+      // 1. Por administradores (venta manual, cualquier canal).
+      // 2. Por visitantes de la tienda web siempre que el pedido inicie estrictamente
+      //    en estado 'pending' y con 'inventoryDeducted: false' (evita reservas ilegítimas).
+      allow create: if isValidOrder(request.resource.data) && (
+        isAdmin() || (
+          request.resource.data.orderStatus == 'pending' &&
+          request.resource.data.inventoryDeducted == false
+        )
+      );
+
+      // Modificación de estados (preparación, envío, cancelación, pago): exclusivo administradores
+      allow update: if isAdmin() && isValidOrder(request.resource.data);
+
+      // Prohibición absoluta de eliminar pedidos (preservación de trazabilidad fiscal y comercial)
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // COLECCIÓN: /inventory_movements/{movementId}
+    // =========================================================================
+    match /inventory_movements/{movementId} {
+      // Auditoría de inventario: solo lectura para administradores
+      allow read: if isAdmin();
+
+      // Registro append-only: creación permitida a administradores; inmutable una vez creado
+      allow create: if isAdmin() && isValidInventoryMovement(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // COLECCIÓN: /admins/{uid}
+    // =========================================================================
+    match /admins/{uid} {
+      // Un usuario solo puede verificar si él mismo es administrador
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+
+      // No se permite crear ni modificar administradores desde el SDK cliente web.
+      // La asignación de roles debe realizarse con Firebase Admin SDK / CLI.
+      allow write: if false;
+    }
+  }
+}

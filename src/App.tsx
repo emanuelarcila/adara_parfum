@@ -49,6 +49,7 @@ import {
   transitionOrderStatus,
   adjustManualStock
 } from './services/orderInventoryService';
+import { reconcileCartWithCatalog } from './services/cartValidationService';
 
 export const App: React.FC = () => {
   // Navigation & View state
@@ -117,6 +118,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('adara_cart_v2', JSON.stringify(cart));
   }, [cart]);
+
+  // Reconciliación de integridad del carrito contra el catálogo autoritativo
+  useEffect(() => {
+    setCart((prevCart) => {
+      const { validItems, hasChanges } = reconcileCartWithCatalog(prevCart, products);
+      return hasChanges ? validItems : prevCart;
+    });
+  }, [products]);
 
   // Observe Firebase Authentication session changes with strict UID authorization
   useEffect(() => {
@@ -343,9 +352,14 @@ export const App: React.FC = () => {
     showToast('warning', 'Fragancia eliminada del catálogo');
   };
 
-  // Stock Adjustment Handler (Centralizado vía orderInventoryService)
-  const handleAdjustStock = (productId: string, delta: number, reason: string) => {
-    const res = adjustManualStock(products, productId, delta, reason, currentUser?.uid || 'admin-local');
+  // Stock Adjustment Handler (Centralizado vía orderInventoryService con soporte de variantes)
+  const handleAdjustStock = (
+    productId: string,
+    delta: number,
+    reason: string,
+    variantId?: string
+  ) => {
+    const res = adjustManualStock(products, productId, delta, reason, currentUser?.uid || 'admin-local', variantId);
     if (!res.success) {
       showToast('warning', 'Error en inventario', res.error || 'No fue posible aplicar el ajuste.');
       return;
@@ -355,19 +369,23 @@ export const App: React.FC = () => {
   };
 
   // Order Handlers con Integridad de Inventario (Fase 2.4A)
-  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
+  // Devuelve el Order actualizado en éxito o null en fallo,
+  // para que los componentes hijos puedan sincronizar su estado local
+  // solo cuando la operación real tuvo éxito.
+  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus): Order | null => {
     const orderToUpdate = orders.find((ord) => ord.id === orderId);
-    if (!orderToUpdate) return;
+    if (!orderToUpdate) return null;
 
     const res = transitionOrderStatus(products, orderToUpdate, status, currentUser?.uid || 'admin-local');
     if (!res.success) {
       showToast('warning', 'Error en pedido', res.error || 'No fue posible actualizar el estado.');
-      return;
+      return null;
     }
 
     setProducts(res.updatedProducts);
+    const finalOrder = res.updatedOrder || { ...orderToUpdate, orderStatus: status };
     setOrders((prev) =>
-      prev.map((ord) => (ord.id === orderId ? (res.updatedOrder || { ...ord, orderStatus: status }) : ord))
+      prev.map((ord) => (ord.id === orderId ? finalOrder : ord))
     );
 
     if (status === 'cancelled') {
@@ -381,6 +399,8 @@ export const App: React.FC = () => {
     } else {
       showToast('success', 'Estado de orden actualizado');
     }
+
+    return finalOrder;
   };
 
   const handleUpdatePaymentStatus = (orderId: string, status: PaymentStatus) => {
@@ -391,11 +411,12 @@ export const App: React.FC = () => {
   };
 
   // Manual Sale Completion Handler (Centralizado con validación y descuento único)
-  const handleCompleteManualSale = (newOrder: Order) => {
+  // Devuelve true en éxito o false si fue rechazada por falta de stock
+  const handleCompleteManualSale = (newOrder: Order): boolean => {
     const res = registerManualSale(products, newOrder, currentUser?.uid || 'admin-local');
     if (!res.success) {
       showToast('warning', 'Venta rechazada', res.error || 'Stock insuficiente para completar la venta.');
-      return;
+      return false;
     }
 
     setOrders((prev) => [res.updatedOrder || newOrder, ...prev]);
@@ -406,6 +427,7 @@ export const App: React.FC = () => {
       'Venta Manual Confirmada',
       `Orden ${newOrder.reference} registrada para ${newOrder.customerName}.`
     );
+    return true;
   };
 
   // Handler para pedidos iniciados desde WhatsApp en la tienda web

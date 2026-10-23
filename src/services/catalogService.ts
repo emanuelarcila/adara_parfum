@@ -95,3 +95,5 @@ export const InventoryService: IInventoryRepository = {
     throw new FirestoreNotConnectedError('getInventoryLogs');
   }
 };
+
+export { calculateVerifiedOrderTotal };

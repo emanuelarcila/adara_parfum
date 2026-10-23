@@ -5,7 +5,9 @@ import { Search, Eye, X } from 'lucide-react';
 
 interface AdminOrdersProps {
   orders: Order[];
-  onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  // Devuelve el Order actualizado en caso de éxito o null si la operación falló.
+  // AdminOrders usa ese resultado para sincronizar su estado local de forma segura.
+  onUpdateOrderStatus: (orderId: string, status: OrderStatus) => Order | null;
   onUpdatePaymentStatus: (orderId: string, status: PaymentStatus) => void;
 }
 
@@ -368,12 +370,14 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                       value={selectedOrder.orderStatus}
                       onChange={(e) => {
                         const newStatus = e.target.value as OrderStatus;
-                        onUpdateOrderStatus(selectedOrder.id, newStatus);
-                        setSelectedOrder({
-                          ...selectedOrder,
-                          orderStatus: newStatus,
-                          inventoryDeducted: newStatus === 'cancelled' ? false : (selectedOrder.inventoryDeducted || newStatus !== 'pending')
-                        });
+                        // Llama al servicio PRIMERO. Solo actualiza el estado local
+                        // si la operación fue exitosa (updatedOrder no es null).
+                        const updatedOrder = onUpdateOrderStatus(selectedOrder.id, newStatus);
+                        if (updatedOrder !== null) {
+                          setSelectedOrder(updatedOrder);
+                        }
+                        // Si updatedOrder === null el toast ya fue mostrado por App.tsx
+                        // y el select se revierte automáticamente al valor anterior en React.
                       }}
                       style={{ width: '100%', padding: '8px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
                     >

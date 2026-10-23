@@ -1,4 +1,4 @@
-import { Product, Order, OrderItem, OrderStatus, PaymentStatus } from './index';
+import { Product, Order, OrderItem, OrderStatus, PaymentStatus, ProductVariantItem } from './index';
 
 /**
  * ADARA PARFUM — Modelos y Tipos de Persistencia para Cloud Firestore
@@ -42,6 +42,7 @@ export interface FirestoreProductDocument {
   stock: number;                                       // 0 por defecto hasta verificación física en taller.
   threshold?: number;                                  // Umbral de stock bajo (por defecto 3 si se define).
   volume?: string | null;                              // Presentación física (ej. '100 ml', '50 ml' o null si pendiente).
+  variants?: ProductVariantItem[];                     // Desglose de variantes independientes (30ml, 50ml, 100ml)
   description?: string | null;                         // Redacción editorial de marketing (null si pendiente).
   image?: string | null;                               // Ruta de imagen verificada (null = sin imagen física asignada).
   intensity?: number | null;                           // Intensidad 1-5 (null si no calificada).
@@ -115,10 +116,28 @@ export function validateProductData(p: Partial<FirestoreProductDocument>): { isV
   };
 }
 
-// Validación estricta de pedidos y cálculo del total a partir de precios confiables
+// Tipos de entrada para validación de pedidos contra catálogo oficial
+export interface OrderValidationInputItem {
+  productId: string;
+  variantId?: string;
+  quantity: number;
+  unitPriceCOP?: number | null; // Precio enviado por el cliente para auditoría de tampering
+}
+
+export interface OrderValidationCatalogItem {
+  id: string;
+  name: string;
+  volume?: string | null;
+  priceCOP?: number | null;
+  stock?: number;
+  status?: string;
+  variants?: ProductVariantItem[];
+}
+
+// Validación estricta de pedidos y cálculo del total a partir de precios y existencias confiables
 export function calculateVerifiedOrderTotal(
-  items: { productId: string; quantity: number }[],
-  catalog: { id: string; name: string; priceCOP?: number | null; stock?: number; status?: string }[]
+  items: OrderValidationInputItem[],
+  catalog: OrderValidationCatalogItem[]
 ): { totalCOP: number; isValid: boolean; verifiedItems: OrderItem[]; errors: string[] } {
   const errors: string[] = [];
   const verifiedItems: OrderItem[] = [];
@@ -135,34 +154,93 @@ export function calculateVerifiedOrderTotal(
       errors.push(`El producto con ID '${item.productId}' no existe en el catálogo oficial.`);
       continue;
     }
-    if (!isPurchasableProduct(product)) {
-      errors.push(`El producto '${product.name}' no tiene precio fijado o no cuenta con inventario para venta.`);
+    if (product.status && product.status !== 'active') {
+      errors.push(`El producto '${product.name}' no está disponible para la venta.`);
       continue;
     }
-    if (item.quantity <= 0 || !Number.isInteger(item.quantity)) {
+    if (typeof item.quantity !== 'number' || isNaN(item.quantity) || item.quantity <= 0 || !Number.isInteger(item.quantity)) {
       errors.push(`Cantidad inválida para '${product.name}'. Debe ser un número entero positivo.`);
       continue;
     }
-    if (typeof product.stock === 'number' && item.quantity > product.stock) {
-      errors.push(`Stock insuficiente para '${product.name}'. Disponibles: ${product.stock}, solicitados: ${item.quantity}.`);
-      continue;
-    }
 
-    const unitPrice = product.priceCOP as number;
-    const itemTotal = unitPrice * item.quantity;
-    totalCOP += itemTotal;
-    verifiedItems.push({
-      productId: product.id,
-      productName: product.name,
-      quantity: item.quantity,
-      unitPriceCOP: unitPrice
-    });
+    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+
+    if (hasVariants) {
+      if (!item.variantId) {
+        errors.push(`Debe especificar una variante válida para el producto multi-presentación '${product.name}'.`);
+        continue;
+      }
+
+      const variant = product.variants!.find((v) => v.id === item.variantId);
+      if (!variant) {
+        errors.push(`La variante con ID '${item.variantId}' no existe para el producto '${product.name}'.`);
+        continue;
+      }
+      if (variant.status !== 'active') {
+        errors.push(`La variante '${variant.volume || variant.id}' de '${product.name}' no está disponible para la venta.`);
+        continue;
+      }
+      if (typeof variant.priceCOP !== 'number' || isNaN(variant.priceCOP) || variant.priceCOP <= 0) {
+        errors.push(`La variante '${variant.volume || variant.id}' de '${product.name}' no tiene un precio válido fijado.`);
+        continue;
+      }
+      if (typeof variant.stock === 'number' && item.quantity > variant.stock) {
+        errors.push(`Stock insuficiente para '${product.name} (${variant.volume || variant.id})'. Disponibles: ${variant.stock}, solicitados: ${item.quantity}.`);
+        continue;
+      }
+      if (item.unitPriceCOP !== undefined && item.unitPriceCOP !== null && item.unitPriceCOP !== variant.priceCOP) {
+        errors.push(`Precio manipulado o inconsistente para '${product.name} (${variant.volume || variant.id})'. Declarado: ${item.unitPriceCOP}, Oficial: ${variant.priceCOP}.`);
+        continue;
+      }
+
+      const unitPrice = variant.priceCOP;
+      const itemTotal = unitPrice * item.quantity;
+      totalCOP += itemTotal;
+      verifiedItems.push({
+        productId: product.id,
+        variantId: variant.id,
+        volume: variant.volume,
+        productName: `${product.name} (${variant.volume})`,
+        quantity: item.quantity,
+        unitPriceCOP: unitPrice
+      });
+    } else {
+      if (item.variantId) {
+        errors.push(`El producto '${product.name}' no maneja variantes, pero se especificó variantId '${item.variantId}'.`);
+        continue;
+      }
+      if (typeof product.priceCOP !== 'number' || isNaN(product.priceCOP) || product.priceCOP <= 0) {
+        errors.push(`El producto '${product.name}' no tiene precio fijado o no cuenta con inventario para venta.`);
+        continue;
+      }
+      if (typeof product.stock === 'number' && item.quantity > product.stock) {
+        errors.push(`Stock insuficiente para '${product.name}'. Disponibles: ${product.stock}, solicitados: ${item.quantity}.`);
+        continue;
+      }
+      if (item.unitPriceCOP !== undefined && item.unitPriceCOP !== null && item.unitPriceCOP !== product.priceCOP) {
+        errors.push(`Precio manipulado o inconsistente para '${product.name}'. Declarado: ${item.unitPriceCOP}, Oficial: ${product.priceCOP}.`);
+        continue;
+      }
+
+      const unitPrice = product.priceCOP;
+      const itemTotal = unitPrice * item.quantity;
+      totalCOP += itemTotal;
+      const displayName = product.volume ? `${product.name} (${product.volume})` : product.name;
+      verifiedItems.push({
+        productId: product.id,
+        variantId: undefined,
+        volume: product.volume || undefined,
+        productName: displayName,
+        quantity: item.quantity,
+        unitPriceCOP: unitPrice
+      });
+    }
   }
 
   return {
-    totalCOP,
+    totalCOP: errors.length === 0 ? totalCOP : 0,
     isValid: errors.length === 0,
-    verifiedItems,
+    verifiedItems: errors.length === 0 ? verifiedItems : [],
     errors
   };
 }

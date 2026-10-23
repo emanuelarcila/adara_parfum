@@ -5,7 +5,46 @@ import { AlertTriangle, CheckCircle, X } from 'lucide-react';
 
 interface AdminInventoryProps {
   products: Product[];
-  onAdjustStock: (productId: string, delta: number, reason: string) => void;
+  onAdjustStock: (productId: string, delta: number, reason: string, variantId?: string) => void;
+}
+
+/** Devuelve el stock total efectivo de un producto (suma de variantes si aplica o stock base). */
+function getProductEffectiveStock(p: Product): number {
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
+    return p.variants.reduce((sum, v) => sum + (typeof v.stock === 'number' ? v.stock : 0), 0);
+  }
+  return typeof p.stock === 'number' ? p.stock : 0;
+}
+
+/** Devuelve la valorización en COP de un producto (suma de variante.stock * variante.priceCOP). */
+function getProductEffectiveValue(p: Product): number {
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
+    return p.variants.reduce((sum, v) => {
+      const price = typeof v.priceCOP === 'number' && v.priceCOP > 0 ? v.priceCOP : (p.priceCOP || 0);
+      const stock = typeof v.stock === 'number' ? v.stock : 0;
+      return sum + stock * price;
+    }, 0);
+  }
+  return (typeof p.stock === 'number' ? p.stock : 0) * (typeof p.priceCOP === 'number' ? p.priceCOP : 0);
+}
+
+/** Evalúa si el producto o alguna de sus variantes está en estado crítico (stock <= umbral). */
+function isProductCritical(p: Product): boolean {
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
+    return p.variants.some((v) => {
+      const th = typeof v.threshold === 'number' ? v.threshold : (p.threshold ?? 3);
+      return (typeof v.stock === 'number' ? v.stock : 0) <= th;
+    });
+  }
+  return (typeof p.stock === 'number' ? p.stock : 0) <= (p.threshold ?? 3);
+}
+
+/** Evalúa si el producto o todas sus variantes están agotadas (0 uds). */
+function isProductFullyOutOfStock(p: Product): boolean {
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
+    return p.variants.every((v) => (typeof v.stock === 'number' ? v.stock : 0) === 0);
+  }
+  return (typeof p.stock === 'number' ? p.stock : 0) === 0;
 }
 
 export const AdminInventory: React.FC<AdminInventoryProps> = ({
@@ -13,18 +52,35 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
   onAdjustStock
 }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
   const [adjustAmount, setAdjustAmount] = useState<number>(5);
   const [adjustReason, setAdjustReason] = useState<string>('Llegada de nuevo lote de producción');
 
+  // Al abrir el modal de un producto, inicializar la variante seleccionada si tiene variantes
+  const handleOpenAdjustModal = (product: Product) => {
+    setSelectedProduct(product);
+    if (Array.isArray(product.variants) && product.variants.length > 0) {
+      setSelectedVariantId(product.variants[0].id);
+    } else {
+      setSelectedVariantId('');
+    }
+    setAdjustAmount(5);
+  };
+
   const handleApplyAdjustment = (delta: number) => {
     if (!selectedProduct) return;
-    onAdjustStock(selectedProduct.id, delta, adjustReason);
+    const variantIdToPass = (Array.isArray(selectedProduct.variants) && selectedProduct.variants.length > 0)
+      ? selectedVariantId
+      : undefined;
+
+    onAdjustStock(selectedProduct.id, delta, adjustReason, variantIdToPass);
     setSelectedProduct(null);
   };
 
-  const totalStockUnits = products.reduce((acc, p) => acc + p.stock, 0);
-  const criticalStockCount = products.filter((p) => p.stock <= (p.threshold || 3)).length;
-  const totalStockValue = products.reduce((acc, p) => acc + p.stock * (p.priceCOP || 0), 0);
+  // KPIs calculados respetando la fuente de verdad (variantes independientes o stock base)
+  const totalStockUnits = products.reduce((acc, p) => acc + getProductEffectiveStock(p), 0);
+  const totalStockValue = products.reduce((acc, p) => acc + getProductEffectiveValue(p), 0);
+  const criticalStockCount = products.filter(isProductCritical).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -93,8 +149,12 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
           </thead>
           <tbody>
             {products.map((p) => {
-              const isLow = p.stock <= (p.threshold ?? 3);
-              const isZero = p.stock === 0;
+              const hasVariants = Array.isArray(p.variants) && p.variants.length > 0;
+              const effectiveStock = getProductEffectiveStock(p);
+              const effectiveValue = getProductEffectiveValue(p);
+              const isZero = isProductFullyOutOfStock(p);
+              const isCritical = isProductCritical(p);
+
               return (
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.35)' }}>
                   <td style={{ padding: '14px 20px' }}>
@@ -129,11 +189,39 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                         <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
                           {p.family}{p.volume ? ` · ${p.volume}` : ''}
                         </div>
+                        {hasVariants && (
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                            {p.variants!.map((v) => (
+                              <span
+                                key={v.id}
+                                style={{
+                                  fontSize: '10px',
+                                  padding: '1px 6px',
+                                  borderRadius: '3px',
+                                  backgroundColor: v.stock <= (v.threshold ?? 3)
+                                    ? (v.stock === 0 ? 'rgba(248, 113, 113, 0.15)' : 'rgba(251, 191, 36, 0.15)')
+                                    : 'rgba(255, 255, 255, 0.05)',
+                                  color: v.stock <= (v.threshold ?? 3)
+                                    ? (v.stock === 0 ? 'var(--color-danger)' : 'var(--color-warning)')
+                                    : 'var(--color-text-secondary)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                                }}
+                              >
+                                {v.volume}: <strong>{v.stock}</strong> uds
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
                   <td style={{ padding: '14px', fontWeight: 600, fontSize: '14px', color: 'var(--color-ivory)' }}>
-                    {p.stock} uds
+                    {effectiveStock} uds
+                    {hasVariants && (
+                      <span style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-tertiary)', fontWeight: 400 }}>
+                        Total consolidado
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '14px', color: 'var(--color-text-secondary)' }}>
                     {p.threshold ?? 3} uds mín.
@@ -152,23 +240,23 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                         letterSpacing: '0.06em',
                         backgroundColor: isZero
                           ? 'rgba(248, 113, 113, 0.12)'
-                          : isLow
+                          : isCritical
                           ? 'rgba(251, 191, 36, 0.12)'
                           : 'rgba(74, 222, 128, 0.12)',
                         color: isZero
                           ? 'var(--color-danger)'
-                          : isLow
+                          : isCritical
                           ? 'var(--color-warning)'
                           : 'var(--color-success)'
                       }}
                     >
-                      {isZero ? <AlertTriangle size={12} /> : isLow ? <AlertTriangle size={12} /> : <CheckCircle size={12} />}
-                      <span>{isZero ? 'Agotado' : isLow ? 'Stock Bajo' : 'Óptimo'}</span>
+                      {isZero ? <AlertTriangle size={12} /> : isCritical ? <AlertTriangle size={12} /> : <CheckCircle size={12} />}
+                      <span>{isZero ? 'Agotado' : isCritical ? 'Stock Bajo' : 'Óptimo'}</span>
                     </div>
                   </td>
                   <td style={{ padding: '14px', color: 'var(--color-gold)', fontWeight: 600 }}>
-                    {p.priceCOP && p.priceCOP > 0 ? (
-                      formatCOP(p.stock * p.priceCOP)
+                    {effectiveValue > 0 ? (
+                      formatCOP(effectiveValue)
                     ) : (
                       <span style={{ color: 'var(--color-gold-light)', fontStyle: 'italic', fontSize: '11px' }}>
                         Bajo consulta
@@ -178,7 +266,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                   <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                     <button
                       type="button"
-                      onClick={() => setSelectedProduct(p)}
+                      onClick={() => handleOpenAdjustModal(p)}
                       style={{
                         padding: '6px 14px',
                         borderRadius: '4px',
@@ -187,7 +275,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                         color: 'var(--color-gold)',
                         fontSize: '11px',
                         fontWeight: 600,
-                        textTransform: 'uppercase'
+                        textTransform: 'uppercase',
+                        cursor: 'pointer'
                       }}
                     >
                       Ajustar Stock
@@ -235,20 +324,54 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedProduct(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', padding: '4px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', padding: '4px', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '20px' }}>
-              Stock actual: <strong style={{ color: 'var(--color-ivory)' }}>{selectedProduct.stock} unidades</strong>
-            </p>
+            {/* Selector de variante si el producto tiene presentaciones múltiples */}
+            {Array.isArray(selectedProduct.variants) && selectedProduct.variants.length > 0 ? (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                  Presentación / Variante a Ajustar
+                </label>
+                <select
+                  value={selectedVariantId}
+                  onChange={(e) => setSelectedVariantId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    backgroundColor: '#111',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    color: '#fff',
+                    fontSize: '13px'
+                  }}
+                >
+                  {selectedProduct.variants.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.volume} — Stock actual: {v.stock} uds {v.priceCOP ? `(${formatCOP(v.priceCOP)})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', marginBottom: 0 }}>
+                  Stock de presentación seleccionada:{' '}
+                  <strong style={{ color: 'var(--color-gold)' }}>
+                    {selectedProduct.variants.find((v) => v.id === selectedVariantId)?.stock ?? 0} unidades
+                  </strong>
+                </p>
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '20px' }}>
+                Stock actual: <strong style={{ color: 'var(--color-ivory)' }}>{selectedProduct.stock} unidades</strong>
+              </p>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                  Cantidad a Modificar
+                  Cantidad de Frascos a Modificar
                 </label>
                 <input
                   type="number"
@@ -287,7 +410,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                     color: 'var(--color-danger)',
                     fontSize: '11px',
                     fontWeight: 700,
-                    textTransform: 'uppercase'
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
                   }}
                 >
                   - Descontar ({adjustAmount})
@@ -304,7 +428,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                     color: 'var(--color-success)',
                     fontSize: '11px',
                     fontWeight: 700,
-                    textTransform: 'uppercase'
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
                   }}
                 >
                   + Agregar ({adjustAmount})
