@@ -7,7 +7,7 @@ import {
   isPurchasableVariant,
   isPricedVariant
 } from '../../types';
-import { formatCOP, formatProductPrice } from '../../data/mockData';
+import { formatCOP, formatProductPrice, getProductImageUrl } from '../../data/mockData';
 import { X, Plus, Minus, ShoppingBag, Sparkles } from 'lucide-react';
 
 /**
@@ -188,29 +188,32 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               overflow: 'hidden'
             }}
           >
-            {product.image ? (
-              <img
-                src={product.image}
-                alt={product.name}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const fb = (e.currentTarget.parentElement as HTMLElement)?.querySelector('.modal-luxury-fallback');
-                  if (fb) (fb as HTMLElement).style.display = 'flex';
-                }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  maxHeight: '520px',
-                  objectFit: 'cover'
-                }}
-              />
-            ) : null}
+            {(() => {
+              const displayImg = getProductImageUrl(product);
+              return (
+                <img
+                  src={displayImg}
+                  alt={product.name}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fb = (e.currentTarget.parentElement as HTMLElement)?.querySelector('.modal-luxury-fallback');
+                    if (fb) (fb as HTMLElement).style.display = 'flex';
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    maxHeight: '520px',
+                    objectFit: 'cover'
+                  }}
+                />
+              );
+            })()}
 
             {/* Fallback Monogram when no image or image load fails */}
             <div
               className="modal-luxury-fallback"
               style={{
-                display: product.image ? 'none' : 'flex',
+                display: 'none',
                 position: 'absolute',
                 inset: 0,
                 flexDirection: 'column',

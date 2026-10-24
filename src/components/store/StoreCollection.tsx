@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Product, isPurchasableProduct, isPricedProduct, isPurchasableVariant, isPricedVariant } from '../../types';
-import { formatCOP, formatProductPrice } from '../../data/mockData';
+import { formatCOP, formatProductPrice, getProductImageUrl } from '../../data/mockData';
 import { Eye, Plus, SlidersHorizontal, Sparkles } from 'lucide-react';
 
 /**
@@ -289,35 +289,38 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
                     onClick={() => onSelectProduct(product)}
                     data-cursor="DETALLE"
                   >
-                    {product.image ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const fallback = (e.currentTarget.parentElement as HTMLElement)?.querySelector('.luxury-fallback');
-                          if (fallback) (fallback as HTMLElement).style.display = 'flex';
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          transition: 'transform 0.8s var(--ease-cinematic)'
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.06)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                      />
-                    ) : null}
+                    {(() => {
+                      const displayImg = getProductImageUrl(product);
+                      return (
+                        <img
+                          src={displayImg}
+                          alt={product.name}
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = (e.currentTarget.parentElement as HTMLElement)?.querySelector('.luxury-fallback');
+                            if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transition: 'transform 0.8s var(--ease-cinematic)'
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.06)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                        />
+                      );
+                    })()}
 
-                    {/* Luxury Monogram Fallback (Active when no image or image load fails) */}
+                    {/* Luxury Monogram Fallback (Activo únicamente si la imagen falla al cargar) */}
                     <div
                       className="luxury-fallback"
                       style={{
-                        display: product.image ? 'none' : 'flex',
+                        display: 'none',
                         position: 'absolute',
                         inset: 0,
                         flexDirection: 'column',

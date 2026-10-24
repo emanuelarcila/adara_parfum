@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Product, OlfactiveFamily } from '../../types';
-import { formatCOP } from '../../data/mockData';
+import { formatCOP, getProductImageUrl } from '../../data/mockData';
 import { Plus, Search, Edit2, Pause, Play, Trash2, X } from 'lucide-react';
 
 /**
@@ -97,6 +97,10 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
     const parsedPrice = formPrice !== '' && Number(formPrice) > 0 ? Number(formPrice) : null;
     const parsedStock = Math.max(0, Number(formStock) || 0);
 
+    const resolvedImage = formImage.trim()
+      ? formImage.trim()
+      : (editingProduct?.image || getProductImageUrl({ id: editingProduct?.id, name: formName, family: formFamily }));
+
     // Preservación estricta de variantes y acordes preexistentes al editar datos generales del producto
     const updated: Product = {
       id: editingProduct ? editingProduct.id : `adara-${Date.now()}`,
@@ -113,7 +117,7 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
       notesTop: formTop ? formTop.split(',').map((s) => s.trim()).filter(Boolean) : [],
       notesHeart: formHeart ? formHeart.split(',').map((s) => s.trim()).filter(Boolean) : [],
       notesBase: formBase ? formBase.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      image: formImage.trim() ? formImage.trim() : null,
+      image: resolvedImage,
       featured: editingProduct ? editingProduct.featured : false,
       intensity: formIntensity !== '' && Number(formIntensity) > 0 ? Number(formIntensity) : null,
       ...(editingProduct?.accords ? { accords: editingProduct.accords } : {}),
@@ -268,37 +272,40 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
                 <tr key={product.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.35)' }}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                          style={{
-                            width: '44px',
-                            height: '52px',
-                            objectFit: 'cover',
-                            borderRadius: '4px',
-                            backgroundColor: '#111'
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: '44px',
-                            height: '52px',
-                            borderRadius: '4px',
-                            backgroundColor: '#161614',
-                            border: '1px solid rgba(198, 161, 91, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const displayImg = getProductImageUrl(product);
+                        return displayImg ? (
+                          <img
+                            src={displayImg}
+                            alt={product.name}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            style={{
+                              width: '44px',
+                              height: '52px',
+                              objectFit: 'cover',
+                              borderRadius: '4px',
+                              backgroundColor: '#111'
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '44px',
+                              height: '52px',
+                              borderRadius: '4px',
+                              backgroundColor: '#161614',
+                              border: '1px solid rgba(198, 161, 91, 0.2)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
+                          </div>
+                        );
+                      })()}
                       <div>
                         <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{product.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
@@ -665,6 +672,64 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
                     placeholder="Separa con comas"
                     style={{ width: '100%', padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
                   />
+                </div>
+              </div>
+
+              {/* Row 5: Fragrance Image & Presets */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                  URL o Ruta de Imagen del Frasco (Opcional)
+                </label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={formImage}
+                    onChange={(e) => setFormImage(e.target.value)}
+                    placeholder="Ej. /images/oud_royal.jpg o URL web"
+                    style={{ flex: 1, padding: '10px', backgroundColor: '#111', border: '1px solid var(--color-border)', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                  />
+                  {formImage ? (
+                    <img
+                      src={formImage}
+                      alt="Previsualización"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                      style={{ width: '38px', height: '44px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--color-gold)' }}
+                    />
+                  ) : null}
+                </div>
+
+                {/* Quick Presets for official bottles */}
+                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Oficiales:
+                  </span>
+                  {[
+                    { label: 'Oud Royal', path: '/images/oud_royal.jpg' },
+                    { label: 'Rose Noire', path: '/images/rose_noire.jpg' },
+                    { label: 'Ambre Impérial', path: '/images/ambre_imperial.jpg' },
+                    { label: 'Cuir Sauvage', path: '/images/cuir_sauvage.jpg' },
+                    { label: 'Santal Blanc', path: '/images/santal_blanc.jpg' },
+                    { label: 'Hero Monolito', path: '/images/hero_adara.jpg' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.path}
+                      type="button"
+                      onClick={() => setFormImage(preset.path)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '10px',
+                        borderRadius: '3px',
+                        backgroundColor: formImage === preset.path ? 'var(--color-gold)' : 'rgba(255, 255, 255, 0.05)',
+                        color: formImage === preset.path ? '#0b0b0a' : 'var(--color-ivory)',
+                        border: '1px solid rgba(198, 161, 91, 0.25)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 

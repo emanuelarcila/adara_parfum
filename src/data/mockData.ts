@@ -276,3 +276,75 @@ export const formatProductPrice = (price: number | null | undefined): string => 
   }
   return formatCOP(price);
 };
+
+// ============================================================================
+// SECCIÓN 5: GESTIÓN Y RESOLUCIÓN RESILIENTE DE IMÁGENES
+// ============================================================================
+
+/**
+ * Catálogo de imágenes oficiales de alta definición disponibles en la carpeta pública del proyecto.
+ */
+export const OFFICIAL_PRODUCT_IMAGES: Record<string, string> = {
+  'adara-oud-royal': '/images/oud_royal.jpg',
+  'adara-rose-noire': '/images/rose_noire.jpg',
+  'adara-ambre-imperial': '/images/ambre_imperial.jpg',
+  'adara-cuir-sauvage': '/images/cuir_sauvage.jpg',
+  'adara-santal-blanc': '/images/santal_blanc.jpg',
+  'adara-vetiver-nocturne': '/images/hero_adara.jpg'
+};
+
+/**
+ * Resuelve y garantiza una ruta de imagen válida para cualquier producto o variante.
+ *
+ * @remarks
+ * Si el producto no tiene una imagen configurada, si el valor almacenado en `localStorage`
+ * quedó como nulo/vacío, o si se añade un producto sin URL, esta función rehidrata automáticamente
+ * la imagen correspondiente del catálogo oficial o selecciona una alternativa estética basada
+ * en la familia olfativa del perfume.
+ *
+ * @param product - Objeto parcial de producto con propiedades identificadoras y olfativas.
+ * @returns Ruta absoluta accesible hacia la imagen en formato JPG o URL web.
+ */
+export const getProductImageUrl = (
+  product?: Partial<Product> | null
+): string => {
+  if (!product) return '/images/hero_adara.jpg';
+
+  // 1. Si cuenta con una imagen asignada explícita válida y no vacía
+  if (product.image && typeof product.image === 'string' && product.image.trim() !== '') {
+    const trimmed = product.image.trim();
+    // Normalizar si le falta el slash inicial
+    if (trimmed.startsWith('images/')) return `/${trimmed}`;
+    return trimmed;
+  }
+
+  // 2. Coincidencia directa por ID de catálogo oficial
+  if (product.id && OFFICIAL_PRODUCT_IMAGES[product.id]) {
+    return OFFICIAL_PRODUCT_IMAGES[product.id];
+  }
+
+  // 3. Coincidencia por nombre en INITIAL_PRODUCTS o palabras clave
+  if (product.name) {
+    const normName = product.name.trim().toLowerCase();
+    const match = INITIAL_PRODUCTS.find((p) => p.name.trim().toLowerCase() === normName);
+    if (match?.image) return match.image;
+
+    if (normName.includes('oud')) return '/images/oud_royal.jpg';
+    if (normName.includes('rose') || normName.includes('rosa')) return '/images/rose_noire.jpg';
+    if (normName.includes('ambre') || normName.includes('ámbar') || normName.includes('ambar')) return '/images/ambre_imperial.jpg';
+    if (normName.includes('cuir') || normName.includes('cuero')) return '/images/cuir_sauvage.jpg';
+    if (normName.includes('santal') || normName.includes('sándalo') || normName.includes('sandalo')) return '/images/santal_blanc.jpg';
+    if (normName.includes('vetiver')) return '/images/hero_adara.jpg';
+  }
+
+  // 4. Fallback contextual por familia olfativa
+  const family = (product.family || '').toLowerCase();
+  if (family.includes('floral')) return '/images/rose_noire.jpg';
+  if (family.includes('cuero') || family.includes('humo')) return '/images/cuir_sauvage.jpg';
+  if (family.includes('ámbar') || family.includes('ambar') || family.includes('oriental')) return '/images/ambre_imperial.jpg';
+  if (family.includes('amaderada')) return '/images/santal_blanc.jpg';
+
+  // 5. Fallback monolito de marca ADARA
+  return '/images/oud_royal.jpg';
+};
+

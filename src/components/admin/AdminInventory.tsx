@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Product } from '../../types';
-import { formatCOP } from '../../data/mockData';
+import { formatCOP, getProductImageUrl } from '../../data/mockData';
 import { AlertTriangle, CheckCircle, X } from 'lucide-react';
 
 /**
@@ -196,31 +196,34 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(56, 48, 36, 0.35)' }}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      {p.image ? (
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                          style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', backgroundColor: '#111' }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: '40px',
-                            height: '48px',
-                            borderRadius: '4px',
-                            backgroundColor: '#161614',
-                            border: '1px solid rgba(198, 161, 91, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const displayImg = getProductImageUrl(p);
+                        return displayImg ? (
+                          <img
+                            src={displayImg}
+                            alt={p.name}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', backgroundColor: '#111' }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '48px',
+                              borderRadius: '4px',
+                              backgroundColor: '#161614',
+                              border: '1px solid rgba(198, 161, 91, 0.2)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <span style={{ fontSize: '9px', color: 'var(--color-gold)', fontWeight: 700 }}>ADR</span>
+                          </div>
+                        );
+                      })()}
                       <div>
                         <div style={{ fontWeight: 600, color: 'var(--color-ivory)' }}>{p.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>

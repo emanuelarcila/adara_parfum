@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product, CartItem, Order, DateRange, OrderStatus, PaymentStatus, ProductVariantItem, isPricedVariant, isPurchasableVariant } from './types';
-import { INITIAL_PRODUCTS, INITIAL_ORDERS } from './data/mockData';
+import { INITIAL_PRODUCTS, INITIAL_ORDERS, getProductImageUrl } from './data/mockData';
 
 // Common Components
 import { CustomCursor } from './components/common/CustomCursor';
@@ -80,8 +80,22 @@ export const App: React.FC = () => {
 
   // Data state
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('adara_products_v2');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    try {
+      const saved = localStorage.getItem('adara_products_v2');
+      if (!saved) return INITIAL_PRODUCTS;
+      const parsed: Product[] = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_PRODUCTS;
+
+      // Rehidratación y saneamiento de imágenes:
+      // Si el navegador almacenó productos con image nulo o vacío en sesiones previas,
+      // se rehidrata automáticamente con la imagen oficial correspondiente.
+      return parsed.map((p) => ({
+        ...p,
+        image: getProductImageUrl(p)
+      }));
+    } catch {
+      return INITIAL_PRODUCTS;
+    }
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {

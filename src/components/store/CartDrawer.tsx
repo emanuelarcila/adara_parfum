@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { CartItem, Order, getCartItemKey } from '../../types';
-import { formatCOP } from '../../data/mockData';
+import { formatCOP, getProductImageUrl } from '../../data/mockData';
 import { createWhatsAppOrder } from '../../services/orderInventoryService';
 import { X, Plus, Minus, Trash2, ArrowRight, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
 
@@ -327,26 +327,29 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         justifyContent: 'center'
                       }}
                     >
-                      {item.product.image ? (
-                        <img
-                          src={item.product.image}
-                          alt={item.product.name}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '4px' }}>
-                          <span style={{ fontSize: '9px', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                            ADARA
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const displayImg = getProductImageUrl(item.product);
+                        return displayImg ? (
+                          <img
+                            src={displayImg}
+                            alt={item.product.name}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        ) : (
+                          <div style={{ textAlign: 'center', padding: '4px' }}>
+                            <span style={{ fontSize: '9px', color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                              ADARA
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Info */}
