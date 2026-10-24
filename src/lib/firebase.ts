@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+// ============================================================================
+// SECCIÓN 1: IMPORTACIONES Y DEPENDENCIAS
+// ============================================================================
+
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,
@@ -12,6 +16,10 @@ import {
 } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
+// ============================================================================
+// SECCIÓN 2: CONFIGURACIÓN E INICIALIZACIÓN DEL SDK DE FIREBASE
+// ============================================================================
+
 /**
  * ADARA PARFUM — Configuración e inicialización del SDK de Firebase
  *
@@ -19,7 +27,6 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
  * Si no están definidas en .env.local, no se inicializan los servicios y se emite
  * una advertencia explícita en consola sin inventar credenciales ni aplicar fallbacks ficticios.
  */
-
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -39,6 +46,9 @@ const requiredKeys: (keyof typeof firebaseConfig)[] = [
 
 const missingKeys = requiredKeys.filter((key) => !firebaseConfig[key]);
 
+/**
+ * Indicador de si las variables de entorno mínimas para Firebase se encuentran presentes.
+ */
 export const isFirebaseConfigured: boolean = missingKeys.length === 0;
 
 let app: FirebaseApp | null = null;
@@ -57,8 +67,15 @@ if (isFirebaseConfigured) {
   );
 }
 
+// ============================================================================
+// SECCIÓN 3: AUTENTICACIÓN Y CONTROL DE ACCESO
+// ============================================================================
+
 /**
- * Traduce códigos de error de Firebase Authentication a mensajes comprensibles en español.
+ * Traduce códigos de error técnicos de Firebase Authentication a mensajes comprensibles en español.
+ *
+ * @param errorCode - Código de error devuelto por Firebase (ej. `'auth/invalid-credential'`).
+ * @returns Mensaje redactado para presentación visual al usuario en interfaz.
  */
 export function formatAuthError(errorCode?: string): string {
   switch (errorCode) {
@@ -83,6 +100,11 @@ export function formatAuthError(errorCode?: string): string {
 
 /**
  * Inicia sesión administrativa con correo y contraseña en Firebase Authentication.
+ *
+ * @param email - Correo electrónico de la cuenta de administración.
+ * @param pass - Contraseña del administrador.
+ * @returns Promesa que resuelve la instancia del usuario autenticado {@link User}.
+ * @throws {Error} Si el servicio de autenticación no fue inicializado por credenciales ausentes.
  */
 export async function loginWithEmail(email: string, pass: string): Promise<User> {
   if (!auth) {
@@ -94,6 +116,8 @@ export async function loginWithEmail(email: string, pass: string): Promise<User>
 
 /**
  * Cierra la sesión activa de forma segura.
+ *
+ * @returns Promesa que se resuelve al desvincular el token de sesión.
  */
 export async function logoutUser(): Promise<void> {
   if (!auth) return;
@@ -101,7 +125,10 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
- * Suscribe un observador a los cambios de estado de autenticación.
+ * Suscribe un observador a los cambios de estado de autenticación (login, logout, refresco de token).
+ *
+ * @param callback - Función receptora del usuario autenticado o `null` si no hay sesión activa.
+ * @returns Función canceladora de la suscripción (Unsubscribe).
  */
 export function subscribeToAuth(callback: (user: User | null) => void): Unsubscribe {
   if (!auth) {
@@ -110,6 +137,10 @@ export function subscribeToAuth(callback: (user: User | null) => void): Unsubscr
   }
   return onAuthStateChanged(auth, callback);
 }
+
+// ============================================================================
+// SECCIÓN 4: AUTORIZACIÓN BASADA EN ROLES Y UIDS AUTORIZADOS
+// ============================================================================
 
 /**
  * Lista inmutable de UIDs con privilegios administrativos autorizados,
@@ -125,14 +156,21 @@ export const AUTHORIZED_ADMIN_UIDS: readonly string[] = Object.freeze(
 );
 
 /**
- * Función centralizada de comprobación de autorización administrativa.
+ * Función centralizada de comprobación de autorización administrativa en cliente.
  *
+ * @remarks
  * Principios de seguridad aplicados:
  * 1. Falla de forma segura (fail-closed): si la lista de UIDs está vacía o mal configurada, deniega todo acceso.
  * 2. Comprueba que existe una instancia de usuario válida con un UID de tipo string no vacío.
  * 3. Compara user.uid contra la lista inmutable de UIDs autorizados.
  * 4. Devuelve true ÚNICAMENTE si coincide exactamente con uno de los UID permitidos.
  * 5. Cualquier otra cuenta (incluso si está registrada y autenticada en Firebase) es rechazada.
+ *
+ * ADVERTENCIA: Esta validación es solo para control de UI en el navegador. La seguridad real
+ * del acceso a datos la garantizan las reglas de Firestore (`firestore.rules`).
+ *
+ * @param user - Instancia de usuario de Firebase a verificar.
+ * @returns `true` si el usuario es un administrador acreditado; `false` en caso contrario.
  */
 export function isUserAdmin(user: User | null | undefined): boolean {
   if (!user || typeof user.uid !== 'string' || user.uid.trim().length === 0) {

@@ -1,78 +1,145 @@
+// ============================================================================
+// SECCIÓN 1: IMPORTACIONES Y DEPENDENCIAS
+// ============================================================================
+
 import { Product, Order, OrderItem, OrderStatus, PaymentStatus, ProductVariantItem } from './index';
 
-/**
- * ADARA PARFUM — Modelos y Tipos de Persistencia para Cloud Firestore
- *
- * Diseñados estrictamente a partir de los datos reales del Catálogo Maestro
- * (Catalogo_Maestro_Adhara_Parfum.xlsx) y de los requerimientos de seguridad.
- *
- * PRINCIPIO RECTOR:
- * No inventar datos, precios, existencias ni rutas de imágenes.
- * Los campos no provistos por el Excel se declaran explícitamente como opcionales/nulos
- * y requieren parametrización administrativa en el panel de control.
- */
+// ============================================================================
+// SECCIÓN 2: MODELOS DE DOCUMENTO PARA CLOUD FIRESTORE
+// ============================================================================
 
-// Documento Firestore para el Catálogo de Fragancias
+/**
+ * Esquema de datos para el documento de una fragancia en la colección `/products` de Cloud Firestore.
+ *
+ * @remarks
+ * Diseñado a partir del Catálogo Maestro oficial de ADARA PARFUM.
+ *
+ * Principio rector:
+ * Los campos ontológicos (código, marca, acordes, notas olfativas) provienen del Excel.
+ * Los campos comerciales (precios en COP, existencias físicas, imágenes verificadas)
+ * admiten valores nulos (`null`) y deben parametrizarse en taller antes de la venta pública.
+ */
 export interface FirestoreProductDocument {
   // 1. Campos verificados del Catálogo Maestro (Excel DB_Perfumes - 80 registros)
-  id: string;                                          // Identificador único (ej. 'adh-120-afn')
-  code: string;                                        // Código numérico interno (ej. '120')
-  sku: string;                                         // SKU comercial (ej. 'ADH-120-AFN')
-  name: string;                                        // Nombre Comercial (ej. '9 PM Pour Femme')
-  catalogName: string;                                 // Nombre Catálogo (ej. '9 PM Pour femme Afnan - Woman')
-  brand: string;                                       // Casa perfumista (ej. 'Afnan')
+  /** Identificador único del documento en Firestore (ej. `'adh-120-afn'`). */
+  id: string;
+  /** Código numérico interno de la fórmula (ej. `'120'`). */
+  code: string;
+  /** SKU comercial estandarizado (ej. `'ADH-120-AFN'`). */
+  sku: string;
+  /** Nombre comercial oficial de la fragancia en ADARA (ej. `'9 PM Pour Femme'`). */
+  name: string;
+  /** Nombre extendido de catálogo con casa y perfil (ej. `'9 PM Pour femme Afnan - Woman'`). */
+  catalogName: string;
+  /** Casa perfumista creadora o marca de inspiración (ej. `'Afnan'`). */
+  brand: string;
+  /** Segmentación de género olfativo. */
   gender: 'Femenino' | 'Masculino' | 'Unisex' | string;
-  family: string;                                      // Familia olfativa oficial del Excel
-  accords: string[];                                   // Desglose de acordes principales
+  /** Familia olfativa oficial asignada en el Catálogo Maestro. */
+  family: string;
+  /** Arreglo estructurado de acordes principales de la fragancia. */
+  accords: string[];
+  /** Acorde primario. */
   accord1?: string;
+  /** Acorde secundario. */
   accord2?: string;
+  /** Acorde terciario. */
   accord3?: string;
-  notesTop: string[];                                  // Notas de salida
-  notesHeart: string[];                                // Notas de corazón
-  notesBase: string[];                                 // Notas de fondo
-  weather?: string;                                    // Clima / Estación sugerida
-  occasion?: string;                                   // Ocasión de uso recomendada
-  profile?: string;                                    // Perfil / Estilo olfativo
-  slug: string;                                        // Slug web para URLs y SEO
-  status: 'active' | 'draft' | 'paused' | 'sold-out';  // Mapeado de 'Activo' (TRUE -> active, FALSE -> draft)
-  featured: boolean;                                   // Mapeado de 'Destacado'
+  /** Notas aromáticas de salida (primer impacto olfativo). */
+  notesTop: string[];
+  /** Notas aromáticas de corazón (cuerpo y evolución). */
+  notesHeart: string[];
+  /** Notas aromáticas de fondo (fijación y estela). */
+  notesBase: string[];
+  /** Clima o estación sugerida para su uso (ej. `'Noches frescas'`, `'Primavera/Verano'`). */
+  weather?: string;
+  /** Ocasión de uso recomendada (ej. `'Gala / Noche'`, `'Uso diario'`). */
+  occasion?: string;
+  /** Perfil o carácter olfativo (ej. `'Seductor'`, `'Elegante'`, `'Fresco'`). */
+  profile?: string;
+  /** Slug amigable para URLs y optimización SEO (ej. `'9-pm-pour-femme-afnan'`). */
+  slug: string;
+  /** Estado de disponibilidad: active (público), draft (borrador), paused (pausado), sold-out (agotado). */
+  status: 'active' | 'draft' | 'paused' | 'sold-out';
+  /** Indicador de si el perfume aparece en la selección destacada de portada. */
+  featured: boolean;
 
-  // 2. Campos comerciales y operativos (PENDIENTES: No existen en el Excel)
-  priceCOP: number | null;                             // null = precio no fijado. No se inventa valor.
-  stock: number;                                       // 0 por defecto hasta verificación física en taller.
-  threshold?: number;                                  // Umbral de stock bajo (por defecto 3 si se define).
-  volume?: string | null;                              // Presentación física (ej. '100 ml', '50 ml' o null si pendiente).
-  variants?: ProductVariantItem[];                     // Desglose de variantes independientes (30ml, 50ml, 100ml)
-  description?: string | null;                         // Redacción editorial de marketing (null si pendiente).
-  image?: string | null;                               // Ruta de imagen verificada (null = sin imagen física asignada).
-  intensity?: number | null;                           // Intensidad 1-5 (null si no calificada).
+  // 2. Campos comerciales y operativos
+  /** Precio en COP del producto simple. `null` si no ha sido fijado o si se delega a variantes. */
+  priceCOP: number | null;
+  /** Existencias en taller. 0 por defecto hasta verificación física de inventario. */
+  stock: number;
+  /** Umbral de existencias para activación de alerta de escasez (por defecto 3). */
+  threshold?: number;
+  /** Volumen visible para presentación única (ej. `'100 ml'`). */
+  volume?: string | null;
+  /** Desglose de variantes independientes por presentación volumétrica (30ml, 50ml, 100ml). */
+  variants?: ProductVariantItem[];
+  /** Redacción editorial de mercadeo y notas de cata. */
+  description?: string | null;
+  /** Ruta o URL a la imagen fotográfica oficial verificada del perfume. */
+  image?: string | null;
+  /** Calificación de intensidad y fijación (escala 1 a 5). */
+  intensity?: number | null;
 
   // 3. Auditoría del sistema
+  /** Fecha y hora ISO de creación del registro. */
   createdAt?: string;
+  /** Fecha y hora ISO de la última actualización. */
   updatedAt?: string;
-  updatedBy?: string;                                  // UID del administrador que editó
+  /** UID de Firebase Authentication del administrador que ejecutó la última modificación. */
+  updatedBy?: string;
 }
 
-// Registro inmutable de auditoría para movimientos de inventario
+/**
+ * Registro inmutable de auditoría para cada movimiento de inventario en `/inventory_movements`.
+ *
+ * @remarks
+ * Colección con regla de seguridad `append-only` (`allow update, delete: if false`).
+ * Preserva la trazabilidad fiscal y contable de cada frasco que ingresa o egresa del taller.
+ */
 export interface InventoryMovement {
+  /** Identificador único del movimiento de auditoría. */
   id: string;
+  /** ID de la fragancia afectada. */
   productId: string;
+  /** Nombre del perfume al momento del ajuste. */
   productName: string;
+  /** Existencias previas antes de aplicar el delta. */
   previousStock: number;
+  /** Unidades añadidas (positivo) o restadas (negativo). */
   delta: number;
+  /** Nuevo balance resultante tras el movimiento. */
   newStock: number;
+  /** Motivo u origen del movimiento (ej. "Venta manual", "Reabastecimiento taller", "Cancelación pedido"). */
   reason: string;
+  /** UID del usuario autenticado que autorizó y ejecutó el movimiento. */
   adminUid: string;
+  /** Marca de tiempo ISO del ajuste. */
   timestamp: string;
 }
 
-// Criterio de validación de precio
+// ============================================================================
+// SECCIÓN 3: VALIDACIONES DE ESTRUCTURA Y DOMINIO
+// ============================================================================
+
+/**
+ * Valida si un objeto producto posee un precio positivo válido en COP.
+ *
+ * @param p - Documento o fragmento de producto.
+ * @returns `true` si el precio es un número mayor que 0.
+ */
 export function isPricedProduct(p: { priceCOP?: number | null } | null | undefined): boolean {
   if (!p) return false;
   return typeof p.priceCOP === 'number' && !isNaN(p.priceCOP) && p.priceCOP > 0;
 }
 
-// Criterio de validación de compra para visitantes
+/**
+ * Evalúa si una fragancia cumple las reglas comerciales de compra directa para visitantes.
+ *
+ * @param p - Documento o fragmento de producto.
+ * @returns `true` si está activo, tiene precio mayor a cero y existencias disponibles.
+ */
 export function isPurchasableProduct(
   p: { status?: string; priceCOP?: number | null; stock?: number | null } | null | undefined
 ): boolean {
@@ -88,7 +155,15 @@ export function isPurchasableProduct(
   );
 }
 
-// Validación estricta de estructura de productos para altas y ediciones
+/**
+ * Valida la integridad estructural de los datos de un producto antes de guardarlo en Firestore.
+ *
+ * @remarks
+ * Coincide con las validaciones de tipos y rangos de la regla `isValidProduct(data)` en `firestore.rules`.
+ *
+ * @param p - Datos parciales o completos del producto a evaluar.
+ * @returns Objeto indicando si la estructura es válida y la lista de mensajes de error si los hubiere.
+ */
 export function validateProductData(p: Partial<FirestoreProductDocument>): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
@@ -116,14 +191,20 @@ export function validateProductData(p: Partial<FirestoreProductDocument>): { isV
   };
 }
 
-// Tipos de entrada para validación de pedidos contra catálogo oficial
+// ============================================================================
+// SECCIÓN 4: MODELOS DE ENTRADA PARA VERIFICACIÓN DE PEDIDOS
+// ============================================================================
+
+/** Ítem recibido desde el cliente para verificación previa a la orden. */
 export interface OrderValidationInputItem {
   productId: string;
   variantId?: string;
   quantity: number;
-  unitPriceCOP?: number | null; // Precio enviado por el cliente para auditoría de tampering
+  /** Precio remitido por el cliente; permite auditar intentos de manipulación (*tampering*). */
+  unitPriceCOP?: number | null;
 }
 
+/** Esquema mínimo de producto en catálogo requerido para validar pedidos. */
 export interface OrderValidationCatalogItem {
   id: string;
   name: string;
@@ -134,7 +215,25 @@ export interface OrderValidationCatalogItem {
   variants?: ProductVariantItem[];
 }
 
-// Validación estricta de pedidos y cálculo del total a partir de precios y existencias confiables
+// ============================================================================
+// SECCIÓN 5: LIQUIDACIÓN Y AUDITORÍA DE TOTALES DE PEDIDOS
+// ============================================================================
+
+/**
+ * Valida de forma rigurosa las líneas de un pedido contra el catálogo autoritativo y calcula su total en COP.
+ *
+ * @remarks
+ * Principios de seguridad aplicados:
+ * 1. Verifica existencia física del producto y estado `'active'`.
+ * 2. Si el producto maneja variantes, exige un `variantId` válido, activo y con precio fijado.
+ * 3. Valida que la cantidad solicitada sea un entero positivo y no exceda las existencias en taller.
+ * 4. Si el cliente envía un precio unitario (`unitPriceCOP`), verifica que coincida exactamente con el precio oficial.
+ *    Cualquier discrepancia se clasifica como intento de manipulación y anula la orden.
+ *
+ * @param items - Arreglo de líneas solicitadas por el comprador.
+ * @param catalog - Lista de productos autoritativos contra los cuales cotejar.
+ * @returns Objeto con el total liquidado, validez de la orden, líneas normalizadas y desglose de errores.
+ */
 export function calculateVerifiedOrderTotal(
   items: OrderValidationInputItem[],
   catalog: OrderValidationCatalogItem[]
@@ -245,7 +344,11 @@ export function calculateVerifiedOrderTotal(
   };
 }
 
-// Interfaces de Repositorio para desacoplar componentes de Firestore
+// ============================================================================
+// SECCIÓN 6: INTERFACES DE REPOSITORIO (PATRÓN REPOSITORY)
+// ============================================================================
+
+/** Contrato del repositorio de productos para persistencia en Cloud Firestore. */
 export interface IProductRepository {
   getPublishedProducts(): Promise<FirestoreProductDocument[]>;
   getAllProducts(): Promise<FirestoreProductDocument[]>;
@@ -255,6 +358,7 @@ export interface IProductRepository {
   deleteProduct(id: string, adminUid: string): Promise<void>;
 }
 
+/** Contrato del repositorio de pedidos comerciales para Cloud Firestore. */
 export interface IOrderRepository {
   getAllOrders(): Promise<Order[]>;
   createOrder(order: Omit<Order, 'id'>): Promise<string>;
@@ -262,6 +366,7 @@ export interface IOrderRepository {
   updatePaymentStatus(orderId: string, status: PaymentStatus, adminUid: string): Promise<void>;
 }
 
+/** Contrato del repositorio de inventario y trazabilidad para Cloud Firestore. */
 export interface IInventoryRepository {
   adjustStock(productId: string, delta: number, reason: string, adminUid: string): Promise<void>;
   getInventoryLogs(productId?: string): Promise<InventoryMovement[]>;

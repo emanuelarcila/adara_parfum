@@ -1,3 +1,7 @@
+// ============================================================================
+// SECCIÓN 1: IMPORTACIONES Y DEPENDENCIAS
+// ============================================================================
+
 import {
   Product,
   Order,
@@ -9,32 +13,42 @@ import {
 } from '../types';
 import { InventoryMovement } from '../types/firestore';
 
-/**
- * ADARA PARFUM — Servicio Centralizado de Integridad de Pedidos e Inventario
- *
- * Módulo para la gestión unificada de stock, trazabilidad de pedidos y movimientos.
- * Implementa las reglas comerciales de la Fase 2.4A:
- * 1. Ventas manuales descuentan stock de forma controlada y validada (sin existencias negativas).
- * 2. Pedidos iniciados por WhatsApp se registran como 'pending' con canal 'WhatsApp' SIN descontar stock prematuramente.
- * 3. Confirmar un pedido pendiente descuenta el stock una única vez y marca `inventoryDeducted: true`.
- * 4. Cancelar un pedido restituye stock ÚNICAMENTE si ya había sido descontado (`inventoryDeducted === true`).
- * 5. Cancelar dos veces es estrictamente idempotente (no duplica la restitución).
- * 6. Transiciones entre estados logísticos activos ('preparing' -> 'shipped' -> 'delivered') NO vuelven a descontar stock.
- * 7. Modificar cantidades de un pedido ajusta exclusivamente la diferencia aritmética neta (delta).
- * 8. Soporte preparado para variantes físicas por tamaño (30ml, 50ml, 100ml) sin mezclar existencias.
- */
+// ============================================================================
+// SECCIÓN 2: TIPOS Y CONTRATOS DEL SERVICIO
+// ============================================================================
 
+/**
+ * Estructura de resultado estandarizada para operaciones sobre inventario y pedidos.
+ *
+ * @template T - Tipo de dato adicional devuelto opcionalmente en el campo `data`.
+ */
 export interface InventoryServiceResult<T = void> {
+  /** Indicador de éxito de la operación. */
   success: boolean;
+  /** Mensaje explicativo en caso de error comercial o de validación. */
   error?: string;
+  /** Catálogo de productos actualizado tras aplicar los movimientos. */
   updatedProducts: Product[];
+  /** Pedido con sus nuevos estados y flags de inventario si fue modificado. */
   updatedOrder?: Order;
+  /** Bitácora de movimientos generados para auditoría inmutable. */
   movements: InventoryMovement[];
+  /** Carga útil opcional devuelta por la operación. */
   data?: T;
 }
 
+// ============================================================================
+// SECCIÓN 3: UTILIDADES DE TIEMPO Y CONSULTA DE INVENTARIO
+// ============================================================================
+
 /**
- * Genera una marca temporal en hora legal de Colombia (UTC-5) con formato estándar 'YYYY-MM-DD HH:mm'.
+ * Genera una marca temporal en hora legal de Colombia (America/Bogota, UTC-5).
+ *
+ * @remarks
+ * Produce una cadena en formato estandarizado 'YYYY-MM-DD HH:mm', eliminando
+ * discrepancias horarias entre servidores, navegadores locales y zonas horarias internacionales.
+ *
+ * @returns Cadena con la fecha y hora formateada en hora colombiana.
  */
 export function getColombiaNowString(): string {
   const now = new Date();
@@ -53,10 +67,15 @@ export function getColombiaNowString(): string {
 
 /**
  * Determina de forma determinista si un pedido ya generó una deducción efectiva de inventario.
+ *
+ * @remarks
  * Para pedidos con el flag explícito `inventoryDeducted`, respeta su valor booleano.
  * Para pedidos históricos previos a la Fase 2.4A (donde el flag es undefined):
  * - Los estados 'preparing', 'shipped' y 'delivered' se consideran descontados.
  * - Los estados 'pending' y 'cancelled' se consideran no descontados.
+ *
+ * @param order - Pedido a auditar.
+ * @returns `true` si el inventario ya fue descontado; `false` si sigue pendiente o es nulo.
  */
 export function hasInventoryBeenDeducted(order: Order): boolean {
   if (typeof order.inventoryDeducted === 'boolean') {
@@ -68,6 +87,10 @@ export function hasInventoryBeenDeducted(order: Order): boolean {
 
 /**
  * Busca el stock disponible de un producto o de su variante específica de tamaño.
+ *
+ * @param product - Fragancia a consultar.
+ * @param variantId - ID de la presentación volumétrica si aplica.
+ * @returns Número entero con las unidades disponibles (mínimo 0).
  */
 export function getAvailableStock(product: Product, variantId?: string): number {
   if (variantId && Array.isArray(product.variants) && product.variants.length > 0) {
@@ -79,6 +102,15 @@ export function getAvailableStock(product: Product, variantId?: string): number 
 
 /**
  * Modifica el stock de un producto o su variante de forma pura e inmutable.
+ *
+ * @remarks
+ * Si el producto tiene variantes y se especifica `variantId`, ajusta la variante y
+ * recalcula el stock total del producto padre como la suma exacta de sus variantes.
+ *
+ * @param product - Producto base a transformar.
+ * @param delta - Unidades a sumar (positivo) o restar (negativo).
+ * @param variantId - ID opcional de la variante de mililitros.
+ * @returns Nuevo objeto {@link Product} inmutable con el stock actualizado.
  */
 function applyStockDeltaToProduct(
   product: Product,
@@ -115,8 +147,22 @@ function applyStockDeltaToProduct(
   };
 }
 
+// ============================================================================
+// SECCIÓN 4: OPERACIONES TRANSACCIONALES DE PEDIDOS E INVENTARIO
+// ============================================================================
+
 /**
  * Registra una venta manual verificando existencias y descontando inventario una sola vez.
+ *
+ * @remarks
+ * Diseñada para el módulo de venta física / mostrador en boutique.
+ * Comprueba que cada producto tenga existencias suficientes antes de aplicar descuentos.
+ * Si alguna línea excede el stock, aborta la operación sin modificar el inventario.
+ *
+ * @param currentProducts - Catálogo actual de fragancias.
+ * @param order - Orden de venta manual formulada.
+ * @param adminUid - UID del cajero o administrador que asienta la venta.
+ * @returns Objeto {@link InventoryServiceResult} con el catálogo actualizado, la orden marcada con `inventoryDeducted: true` y los movimientos.
  */
 export function registerManualSale(
   currentProducts: Product[],
@@ -205,7 +251,12 @@ export function registerManualSale(
 
 /**
  * Confirma el inventario de un pedido pendiente, descontando las existencias una sola vez.
- * Si el pedido ya tenía el stock descontado, actúa de forma idempotente sin duplicar descuentos.
+ * Si el pedido ya tenía el stock descontado, actúa de forma estrictamente idempotente sin duplicar descuentos.
+ *
+ * @param currentProducts - Catálogo vigente de productos.
+ * @param order - Pedido a confirmar.
+ * @param adminUid - Identificador del administrador o sistema que realiza la confirmación.
+ * @returns Objeto {@link InventoryServiceResult} con el catálogo actualizado, la orden con `inventoryDeducted: true` y los movimientos generados.
  */
 export function confirmOrderInventory(
   currentProducts: Product[],
@@ -285,6 +336,11 @@ export function confirmOrderInventory(
 /**
  * Cancela un pedido restituyendo existencias ÚNICAMENTE si ya habían sido descontadas.
  * Si el pedido nunca descontó inventario o ya fue cancelado, es estrictamente idempotente.
+ *
+ * @param currentProducts - Catálogo de productos antes de la cancelación.
+ * @param order - Pedido que se va a cancelar.
+ * @param adminUid - Identificador del usuario administrativo que ejecuta la cancelación.
+ * @returns Objeto {@link InventoryServiceResult} con el estado 'cancelled', `inventoryDeducted: false` y los movimientos de restitución.
  */
 export function cancelOrderInventory(
   currentProducts: Product[],
@@ -352,7 +408,14 @@ export function cancelOrderInventory(
 }
 
 /**
- * Modifica las cantidades de un pedido ajustando exclusivamente la diferencia neta de stock.
+ * Modifica las cantidades de un pedido ajustando exclusivamente la diferencia neta (delta) de stock.
+ * Si el pedido ya descontó inventario, calcula el incremento o decremento para cada variante/producto.
+ *
+ * @param currentProducts - Catálogo vigente.
+ * @param order - Pedido existente a modificar.
+ * @param newItems - Nueva lista de artículos para el pedido.
+ * @param adminUid - UID del administrador.
+ * @returns Objeto {@link InventoryServiceResult} con el pedido y catálogo actualizados.
  */
 export function updateOrderQuantities(
   currentProducts: Product[],
@@ -492,7 +555,20 @@ export function updateOrderQuantities(
 }
 
 /**
- * Ajusta manualmente el stock físico de un producto en el taller.
+ * Ajusta manualmente el stock físico de un producto en el taller o boutique.
+ *
+ * @remarks
+ * Permite registrar ingresos por nueva producción/maceración (+delta) o mermas/ajustes de inventario (-delta).
+ * Si el producto maneja variantes, es obligatorio proporcionar `variantId` para preservar la sincronización
+ * del stock desglosado con la sumatoria del producto raíz.
+ *
+ * @param currentProducts - Lista actual de productos.
+ * @param productId - Identificador del producto a ajustar.
+ * @param delta - Variación numérica (positiva para ingresos, negativa para deducciones).
+ * @param reason - Motivo auditable del ajuste (ej. 'Ingreso por lote de maceración', 'Merma por frasco roto').
+ * @param adminUid - UID del usuario administrador que autoriza el movimiento.
+ * @param variantId - Identificador opcional de la variante específica (ej. 'v-30ml').
+ * @returns Objeto {@link InventoryServiceResult} con el producto modificado y el movimiento registrado.
  */
 export function adjustManualStock(
   currentProducts: Product[],
@@ -561,7 +637,18 @@ export function adjustManualStock(
 }
 
 /**
- * Transición unificada del ciclo de vida del pedido con integridad de inventario.
+ * Transición unificada del ciclo de vida del pedido garantizando la integridad de inventario.
+ *
+ * @remarks
+ * Controla que el paso de estados activos ('preparing', 'shipped', 'delivered') descuente
+ * existencias una sola vez, que las cancelaciones ('cancelled') restituyan el stock si
+ * estaba descontado, y que las transiciones a 'pending' preserven el estado previo.
+ *
+ * @param currentProducts - Catálogo actual de fragancias.
+ * @param order - Pedido sobre el cual se realiza la transición.
+ * @param newStatus - Nuevo estado de logística/pedido solicitado.
+ * @param adminUid - UID del administrador que efectúa el cambio.
+ * @returns Objeto {@link InventoryServiceResult} con el pedido y catálogo coherentes.
  */
 export function transitionOrderStatus(
   currentProducts: Product[],
@@ -613,14 +700,25 @@ export function transitionOrderStatus(
   };
 }
 
+/**
+ * Parámetros requeridos para la formulación de una orden base desacoplada.
+ */
 export interface CreateBaseOrderParams {
+  /** Lista de artículos provenientes del carrito de compras. */
   cartItems: CartItem[];
+  /** Canal de venta de origen (ej. 'Tienda Web', 'WhatsApp', 'Boutique Física'). */
   channel?: SalesChannel;
+  /** Método de pago seleccionado o previsto. */
   paymentMethod?: PaymentMethod;
+  /** Nombre del cliente. */
   customerName?: string;
+  /** Teléfono de contacto de Colombia o internacional. */
   customerPhone?: string;
+  /** Ciudad de destino para el despacho. */
   customerCity?: string;
+  /** Notas o especificaciones de entrega. */
   notes?: string;
+  /** Prefijo comercial para la referencia (ej. 'AD', 'AD-WA'). */
   referencePrefix?: string;
 }
 
@@ -633,8 +731,13 @@ let referenceSequence = Math.floor(Math.random() * 1000);
  *   de milisegundos y un contador monotónico por proceso.
  * - Mantiene el prefijo solicitado (ej. 'AD', 'AD-WA', 'AD-MV', 'AD-ADDI').
  *
- * Ejemplo: generateOrderReference('AD') => 'AD-2026-84920001'
- *          generateOrderReference('AD-WA') => 'AD-WA-2026-84920002'
+ * @example
+ * ```ts
+ * generateOrderReference('AD') // => 'AD-2026-84920001'
+ * generateOrderReference('AD-WA') // => 'AD-WA-2026-84920002'
+ * ```
+ * @param prefix - Prefijo de la referencia (por defecto 'AD').
+ * @returns Cadena con formato único `{prefix}-{año}-{timestamp4}{seq5}`.
  */
 export function generateOrderReference(prefix: string = 'AD'): string {
   const colombiaDateStr = getColombiaNowString();
@@ -649,6 +752,9 @@ export function generateOrderReference(prefix: string = 'AD'): string {
  * Crea un pedido desacoplado del canal o pasarela de pago.
  * Valida variantes, cantidades y precios unitarios.
  * Inicia en estado 'pending' con inventoryDeducted: false.
+ *
+ * @param params - Parámetros de la orden {@link CreateBaseOrderParams}.
+ * @returns Objeto con bandera de éxito, la orden creada o el mensaje de error.
  */
 export function createBaseOrder(
   params: CreateBaseOrderParams
@@ -734,6 +840,10 @@ export function createBaseOrder(
 /**
  * Crea un pedido originado en la tienda web mediante WhatsApp en estado 'pending'
  * SIN descontar inventario prematuramente.
+ *
+ * @param cartItems - Lista de artículos seleccionados en el carrito.
+ * @param customerPhone - Teléfono móvil del cliente si fue ingresado en el checkout.
+ * @returns Pedido configurado para el canal WhatsApp y método 'whatsapp_concierge'.
  */
 export function createWhatsAppOrder(
   cartItems: CartItem[],

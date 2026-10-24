@@ -1,19 +1,41 @@
 /**
  * ADARA PARFUM — Suite de Pruebas Automatizadas de Resiliencia del Catálogo
- * Fase 2.1.2: Validación de Productos sin Precio, Campos Opcionales y Manejo de Stock
+ *
+ * @remarks
+ * Script ejecutable vía Node/tsx para validar de manera autónoma los contratos de resiliencia:
+ * 1. Productos sin precio (`priceCOP: null`) y su etiqueta ("Bajo consulta").
+ * 2. Criterios de compra directa (`isPurchasableProduct`).
+ * 3. Tolerancia a campos opcionales nulos (`description: null`, notas ausentes).
+ * 4. Algoritmos de ordenamiento deterministas con precios nulos al final.
+ * 5. Familias olfativas dinámicas detectadas automáticamente.
+ *
+ * @module scripts/test-catalog-resilience
  */
 
 import { Product, isPricedProduct, isPurchasableProduct } from '../src/types';
 import { formatCOP, formatProductPrice } from '../src/data/mockData';
 
+/**
+ * Estructura de resultado de una aserción de prueba.
+ */
 interface TestResult {
+  /** Nombre del escenario o caso de prueba. */
   name: string;
+  /** Indicador booleano de superación de la aserción. */
   passed: boolean;
+  /** Mensaje de contexto o diagnóstico. */
   details: string;
 }
 
 const results: TestResult[] = [];
 
+/**
+ * Función de aserción síncrona para la suite de pruebas del catálogo.
+ *
+ * @param name - Nombre descriptivo del escenario evaluado.
+ * @param condition - Expresión lógica evaluada.
+ * @param details - Explicación de la condición esperada.
+ */
 function assert(name: string, condition: boolean, details: string) {
   results.push({ name, passed: condition, details });
   const status = condition ? '✅ PASS' : '❌ FAIL';

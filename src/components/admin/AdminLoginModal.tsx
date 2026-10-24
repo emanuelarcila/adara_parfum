@@ -2,12 +2,30 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
 import { loginWithEmail, formatAuthError, isUserAdmin, logoutUser } from '../../lib/firebase';
 
+/**
+ * Propiedades del modal de inicio de sesión administrativo.
+ */
 interface AdminLoginModalProps {
+  /** Indica si el modal de autenticación está desplegado en pantalla. */
   isOpen: boolean;
+  /** Disparador para cerrar el modal de login. */
   onClose: () => void;
+  /** Callback ejecutado exitosamente cuando las credenciales y el rol de admin se verifican. */
   onLoginSuccess: () => void;
 }
 
+/**
+ * Modal de autenticación y verificación de privilegios administrativos de ADARA PARFUM.
+ *
+ * @remarks
+ * Permite iniciar sesión con correo y contraseña mediante Firebase Authentication.
+ * Tras la autenticación, valida que el UID del usuario figure en la lista autorizada (`isUserAdmin`);
+ * si no posee privilegios, revoca inmediatamente la sesión (`logoutUser`) y muestra un mensaje seguro.
+ * Limpia la memoria de contraseñas tras el envío y gestiona foco accesible y bloqueo de scroll.
+ *
+ * @param props - Propiedades del componente {@link AdminLoginModalProps}.
+ * @returns Elemento modal interactivo o `null` si `isOpen === false`.
+ */
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   isOpen,
   onClose,

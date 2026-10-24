@@ -3,14 +3,32 @@ import { Order, OrderStatus, PaymentStatus } from '../../types';
 import { formatCOP } from '../../data/mockData';
 import { Search, Eye, X } from 'lucide-react';
 
+/**
+ * Propiedades del módulo de gestión de órdenes de compra y logística.
+ */
 interface AdminOrdersProps {
+  /** Histórico completo de pedidos registrados en el sistema. */
   orders: Order[];
-  // Devuelve el Order actualizado en caso de éxito o null si la operación falló.
-  // AdminOrders usa ese resultado para sincronizar su estado local de forma segura.
+  /**
+   * Callback para transicionar el estado logístico de una orden.
+   * Devuelve la orden actualizada en caso de éxito o null si la transición falló por inventario insuficiente.
+   */
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => Order | null;
+  /** Callback para actualizar el estado del cobro ('pending', 'paid', 'failed', 'refunded', 'on_delivery'). */
   onUpdatePaymentStatus: (orderId: string, status: PaymentStatus) => void;
 }
 
+/**
+ * Módulo administrativo de gestión de pedidos, despachos y pagos.
+ *
+ * @remarks
+ * Permite filtrar órdenes por canal de origen ('Tienda Web', 'WhatsApp', 'Boutique Bogotá', 'Distribuidor'),
+ * buscar por referencia o nombre de cliente, examinar el modal de detalles con desglose de artículos y variantes,
+ * y ejecutar transiciones de estado garantizando que las existencias se sincronicen coherentemente.
+ *
+ * @param props - Propiedades del componente {@link AdminOrdersProps}.
+ * @returns Elemento JSX con la tabla de pedidos y modal de auditoría de orden.
+ */
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
   orders,
   onUpdateOrderStatus,

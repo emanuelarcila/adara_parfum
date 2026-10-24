@@ -11,31 +11,48 @@ import { formatCOP } from '../../data/mockData';
 import { createBaseOrder, getColombiaNowString } from '../../services/orderInventoryService';
 import { Plus, Trash2, CheckCircle2, User, Phone, MapPin } from 'lucide-react';
 
+/**
+ * Propiedades del formulario de registro de venta manual o presencial en mostrador.
+ */
 interface AdminManualSaleProps {
+  /** Catálogo vigente de productos con existencias actualizadas. */
   products: Product[];
+  /** Callback para asentar la orden generada e iniciar el descuento transaccional de inventario. */
   onCompleteSale: (newOrder: Order) => boolean | void;
-  /** Muestra un mensaje de error tipo toast desde el padre. */
+  /** Disparador para mostrar notificaciones de advertencia o error en la interfaz superior. */
   onError?: (message: string) => void;
 }
 
 /**
- * Una línea del formulario de venta manual.
- * variantId es opcional: solo existe cuando el producto seleccionado tiene variantes.
+ * Representa una línea individual de artículo dentro del formulario de venta manual.
  */
 interface SaleLine {
+  /** Identificador único del producto. */
   productId: string;
-  /** ID de variante seleccionada (solo cuando el producto tiene variants). */
+  /** Identificador de la variante específica si el producto maneja presentaciones múltiples. */
   variantId: string | undefined;
+  /** Cantidad de unidades a facturar. */
   quantity: number;
 }
 
-/** Devuelve las variantes activas de un producto, o [] si no tiene variantes. */
+/**
+ * Obtiene las presentaciones activas de una fragancia con existencias o estado de disponibilidad comercial.
+ *
+ * @param product - Fragancia a inspeccionar.
+ * @returns Lista de variantes activas {@link ProductVariantItem}.
+ */
 function getActiveVariants(product: Product | undefined): ProductVariantItem[] {
   if (!product || !Array.isArray(product.variants) || product.variants.length === 0) return [];
   return product.variants.filter((v) => v.status === 'active' || v.status === 'sold-out');
 }
 
-/** Precio unitario para la línea: preferencia variante > producto padre. */
+/**
+ * Resuelve el precio unitario correspondiente a la línea, priorizando el valor de la presentación seleccionada.
+ *
+ * @param product - Fragancia seleccionada.
+ * @param variantId - ID de variante opcional.
+ * @returns Valor monetario en COP o 0 si no cuenta con precio válido.
+ */
 function getLineUnitPrice(product: Product | undefined, variantId: string | undefined): number {
   if (!product) return 0;
   if (variantId && Array.isArray(product.variants)) {
@@ -45,7 +62,13 @@ function getLineUnitPrice(product: Product | undefined, variantId: string | unde
   return typeof product.priceCOP === 'number' && product.priceCOP > 0 ? product.priceCOP : 0;
 }
 
-/** Stock disponible para la línea: variante si aplica, producto padre si no. */
+/**
+ * Obtiene el inventario máximo disponible para la línea de venta, derivando de la variante o del producto base.
+ *
+ * @param product - Fragancia seleccionada.
+ * @param variantId - ID de la presentación seleccionada.
+ * @returns Existencias enteras disponibles.
+ */
 function getLineStock(product: Product | undefined, variantId: string | undefined): number {
   if (!product) return 0;
   if (variantId && Array.isArray(product.variants)) {
@@ -55,6 +78,17 @@ function getLineStock(product: Product | undefined, variantId: string | undefine
   return typeof product.stock === 'number' ? product.stock : 0;
 }
 
+/**
+ * Módulo de mostrador y registro de ventas manuales / presenciales para boutique y distribuidores.
+ *
+ * @remarks
+ * Permite formular órdenes directas seleccionando fragancia, presentación (volumen) y unidades,
+ * validando existencias antes del asentamiento, calculando subtotales y devuelta en efectivo en tiempo real,
+ * y registrando el movimiento de auditoría transaccional de inventario con deducción inmediata.
+ *
+ * @param props - Propiedades del componente {@link AdminManualSaleProps}.
+ * @returns Elemento JSX con el formulario de venta asistida.
+ */
 export const AdminManualSale: React.FC<AdminManualSaleProps> = ({
   products,
   onCompleteSale,

@@ -1,5 +1,16 @@
+/**
+ * ADARA PARFUM — Cursor Personalizado de Lujo
+ *
+ * Implementa una experiencia de puntero fluido con efecto de seguimiento elástico (Lerp)
+ * y detección de elementos interactivos (`button`, `a`, `[data-cursor]`).
+ * Se desactiva automáticamente en pantallas táctiles (`pointer: coarse`).
+ */
+
 import React, { useEffect, useState } from 'react';
 
+/**
+ * Componente de cursor interactivo con micro-animaciones en tiempo real.
+ */
 export const CustomCursor: React.FC = () => {
   const [pos, setPos] = useState({ x: -100, y: -100 });
   const [ringPos, setRingPos] = useState({ x: -100, y: -100 });
@@ -8,7 +19,7 @@ export const CustomCursor: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Only enable if pointer: fine (mouse devices)
+    // Solo activar si el dispositivo dispone de puntero de precisión (mouse / touchpad)
     if (!window.matchMedia('(pointer: fine)').matches) return;
 
     let targetX = -100;
@@ -41,7 +52,7 @@ export const CustomCursor: React.FC = () => {
       setIsVisible(false);
     };
 
-    // Smooth Lerp for ring
+    // Interpolación lineal suave (Lerp) para el anillo exterior
     const render = () => {
       currentX += (targetX - currentX) * 0.18;
       currentY += (targetY - currentY) * 0.18;
@@ -81,3 +92,4 @@ export const CustomCursor: React.FC = () => {
     </>
   );
 };
+

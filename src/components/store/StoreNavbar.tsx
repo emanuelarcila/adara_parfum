@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Search, Menu, X } from 'lucide-react';
 
+/**
+ * Propiedades recibidas por la barra de navegación superior de la tienda.
+ */
 interface StoreNavbarProps {
+  /** Cantidad acumulada de artículos en el carrito de compras. */
   cartCount: number;
+  /** Callback disparador para abrir el cajón lateral del carrito (drawer). */
   onOpenCart: () => void;
+  /** Función para actualizar en tiempo real el término de búsqueda de fragancias. */
   onSearchChange: (query: string) => void;
+  /** Valor actual de la consulta de búsqueda introducida por el usuario. */
   searchQuery: string;
 }
 
+/**
+ * Barra de navegación principal de la boutique web ADARA PARFUM.
+ *
+ * @remarks
+ * Implementa una barra flotante fija con efecto de vidrio líquido (liquid glass)
+ * que se activa dinámicamente mediante scroll listener (offset > 40px).
+ * Provee accesos a secciones editoriales ('#coleccion', '#universo', '#experiencia'),
+ * buscador colapsable en línea, contador badge de la bolsa de compras y menú desplegable para móviles.
+ *
+ * @param props - Propiedades del componente {@link StoreNavbarProps}.
+ * @returns Elemento JSX que contiene la cabecera interactiva de la tienda.
+ */
 export const StoreNavbar: React.FC<StoreNavbarProps> = ({
   cartCount,
   onOpenCart,

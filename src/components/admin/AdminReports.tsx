@@ -26,9 +26,15 @@ export const DEMO_CHANNEL_BREAKDOWN = [
   { channel: 'Distribuidores Aliados', percent: 6, share: 'Concept stores autorizadas' }
 ];
 
+/**
+ * Propiedades del módulo de informes comerciales y exportación de datos.
+ */
 interface AdminReportsProps {
+  /** Periodo temporal activo para la agregación de ventas y órdenes. */
   selectedPeriod: DateRange;
+  /** Lista total de órdenes históricas para filtrar y generar métricas. */
   orders?: Order[];
+  /** Catálogo de productos para asociar familias olfativas a las líneas vendidas. */
   products?: Product[];
 }
 
@@ -59,6 +65,17 @@ const CHANNELS_CONFIG: {
   }
 ];
 
+/**
+ * Módulo de reportes comerciales, distribución de ventas y exportación de datos contables.
+ *
+ * @remarks
+ * Procesa en tiempo real el desglose porcentual de ingresos por familia olfativa y canal de comercialización,
+ * y permite descargar informes tabulares en formato CSV codificados con UTF-8 BOM (`\uFEFF`) para
+ * garantizar apertura impecable de caracteres con acentos en Microsoft Excel en español.
+ *
+ * @param props - Propiedades del componente {@link AdminReportsProps}.
+ * @returns Elemento JSX con la vista analítica de reportes comerciales.
+ */
 export const AdminReports: React.FC<AdminReportsProps> = ({
   selectedPeriod,
   orders = [],

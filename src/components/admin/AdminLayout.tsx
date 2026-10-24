@@ -15,6 +15,9 @@ import {
 import { DateRange, Product, Order } from '../../types';
 import { AdminNotificationsCenter } from './AdminNotificationsCenter';
 
+/**
+ * Pestañas o submódulos operativos del panel de control de ADARA PARFUM.
+ */
 export type AdminTab =
   | 'dashboard'
   | 'products'
@@ -23,19 +26,43 @@ export type AdminTab =
   | 'inventory'
   | 'reports';
 
+/**
+ * Propiedades del contenedor y marco de diseño de la suite administrativa.
+ */
 interface AdminLayoutProps {
+  /** Pestaña activa actual en la consola administrativa. */
   currentTab: AdminTab;
+  /** Disparador para alternar la pestaña visualizada. */
   onTabChange: (tab: AdminTab) => void;
+  /** Rango temporal seleccionado para el filtrado gerencial de métricas. */
   selectedPeriod: DateRange;
+  /** Disparador para actualizar el periodo de visualización de estadísticas. */
   onPeriodChange: (period: DateRange) => void;
+  /** Callback para regresar a la vista pública de la boutique. */
   onSwitchToStore: () => void;
+  /** Callback opcional para cerrar la sesión autenticada de Firebase. */
   onLogout?: () => void;
+  /** Correo electrónico del usuario administrador con sesión iniciada. */
   adminEmail?: string | null;
+  /** Catálogo de productos para alimentar el badge de alertas de inventario. */
   products?: Product[];
+  /** Pedidos actuales para alimentar alertas de envíos pendientes. */
   orders?: Order[];
+  /** Contenido renderizado dentro del área de trabajo principal. */
   children: React.ReactNode;
 }
 
+/**
+ * Contenedor estructural del panel administrativo de ADARA PARFUM.
+ *
+ * @remarks
+ * Proporciona la barra lateral de navegación con enlaces a los módulos funcionales,
+ * selector global de periodo, centro de notificaciones en tiempo real,
+ * indicador del perfil activo y botón seguro de cierre de sesión.
+ *
+ * @param props - Propiedades del componente {@link AdminLayoutProps}.
+ * @returns Elemento JSX que envuelve las vistas administrativas.
+ */
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   currentTab,
   onTabChange,

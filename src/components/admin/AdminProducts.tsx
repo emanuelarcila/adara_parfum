@@ -3,13 +3,30 @@ import { Product, OlfactiveFamily } from '../../types';
 import { formatCOP } from '../../data/mockData';
 import { Plus, Search, Edit2, Pause, Play, Trash2, X } from 'lucide-react';
 
+/**
+ * Propiedades para el módulo de administración de catálogo y precios.
+ */
 interface AdminProductsProps {
+  /** Lista de productos disponibles en el catálogo. */
   products: Product[];
+  /** Callback para guardar una fragancia creada o actualizada. */
   onSaveProduct: (product: Product) => void;
+  /** Callback para alternar el estado comercial del producto ('active' <-> 'paused'). */
   onToggleStatus: (id: string) => void;
+  /** Callback para eliminar permanentemente un producto del catálogo. */
   onDeleteProduct: (id: string) => void;
 }
 
+/**
+ * Módulo de gestión del catálogo de fragancias y precios para administradores.
+ *
+ * @remarks
+ * Permite buscar productos en tiempo real, filtrar por familia olfativa,
+ * pausar o activar fragancias, crear nuevos registros y editar la ficha técnica (notas, precios, existencias).
+ *
+ * @param props - Propiedades del componente {@link AdminProductsProps}.
+ * @returns Elemento JSX con la tabla de productos y modal de edición.
+ */
 export const AdminProducts: React.FC<AdminProductsProps> = ({
   products,
   onSaveProduct,
@@ -80,6 +97,7 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
     const parsedPrice = formPrice !== '' && Number(formPrice) > 0 ? Number(formPrice) : null;
     const parsedStock = Math.max(0, Number(formStock) || 0);
 
+    // Preservación estricta de variantes y acordes preexistentes al editar datos generales del producto
     const updated: Product = {
       id: editingProduct ? editingProduct.id : `adara-${Date.now()}`,
       name: formName.trim(),
@@ -97,7 +115,9 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
       notesBase: formBase ? formBase.split(',').map((s) => s.trim()).filter(Boolean) : [],
       image: formImage.trim() ? formImage.trim() : null,
       featured: editingProduct ? editingProduct.featured : false,
-      intensity: formIntensity !== '' && Number(formIntensity) > 0 ? Number(formIntensity) : null
+      intensity: formIntensity !== '' && Number(formIntensity) > 0 ? Number(formIntensity) : null,
+      ...(editingProduct?.accords ? { accords: editingProduct.accords } : {}),
+      ...(editingProduct?.variants ? { variants: editingProduct.variants } : {})
     };
 
     onSaveProduct(updated);

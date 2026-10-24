@@ -212,6 +212,11 @@ export const INITIAL_ORDERS: Order[] = [
   }
 ];
 
+// ============================================================================
+// SECCIÓN 3: DATOS ESTÁTICOS DE RENDIMIENTO Y GRÁFICOS
+// ============================================================================
+
+/** Datos agregados de muestra para inicialización o demostración rápida en dashboard. */
 export const SALES_PERIOD_DATA = {
   today: { totalCOP: 1490000, ordersCount: 2, unitsSold: 3, comparison: '+24%' },
   week: { totalCOP: 8940000, ordersCount: 16, unitsSold: 21, comparison: '+18.5%' },
@@ -220,6 +225,7 @@ export const SALES_PERIOD_DATA = {
   year: { totalCOP: 310400000, ordersCount: 612, unitsSold: 780, comparison: '+42.0%' }
 };
 
+/** Tendencia mensual de ventas de muestra para visualización gráfica. */
 export const MONTHLY_SALES_CHART = [
   { month: 'Mayo', current: 18200000, previous: 14100000 },
   { month: 'Junio', current: 22400000, previous: 17800000 },
@@ -229,6 +235,20 @@ export const MONTHLY_SALES_CHART = [
   { month: 'Octubre (Actual)', current: 34500000, previous: 28900000 }
 ];
 
+// ============================================================================
+// SECCIÓN 4: FORMATEADORES MONETARIOS OFICIALES (COLOMBIA - COP)
+// ============================================================================
+
+/**
+ * Formatea un valor numérico a pesos colombianos oficiales (COP).
+ *
+ * @remarks
+ * Aplica formato estándar de Colombia (`es-CO`) sin decimales ni centavos (ej. `$ 540.000`).
+ * Ante valores nulos, indefinidos o NaN, retorna de forma segura `$ 0`.
+ *
+ * @param amount - Valor numérico a formatear en pesos.
+ * @returns Cadena formateada en moneda COP.
+ */
 export const formatCOP = (amount: number | null | undefined): string => {
   if (amount === null || amount === undefined || isNaN(amount)) {
     return '$ 0';
@@ -240,6 +260,16 @@ export const formatCOP = (amount: number | null | undefined): string => {
   }).format(amount);
 };
 
+/**
+ * Formatea el precio comercial de una fragancia para su visualización en tienda y panel.
+ *
+ * @remarks
+ * Si el precio es nulo, cero o menor a cero, devuelve exactamente `'Bajo consulta'`
+ * en lugar de `$ 0`, cumpliendo con el principio comercial de exclusividad de ADARA.
+ *
+ * @param price - Precio numérico en COP o null.
+ * @returns Cadena con el precio formateado o `'Bajo consulta'`.
+ */
 export const formatProductPrice = (price: number | null | undefined): string => {
   if (price === null || price === undefined || isNaN(price) || price <= 0) {
     return 'Bajo consulta';

@@ -51,6 +51,21 @@ import {
 } from './services/orderInventoryService';
 import { reconcileCartWithCatalog } from './services/cartValidationService';
 
+/**
+ * Componente raíz y orquestador del estado global de ADARA PARFUM.
+ *
+ * @remarks
+ * Administra el ciclo de vida de la aplicación dividida en dos universos:
+ * 1. **Boutique Pública (`currentView === 'store'`)**: Navegación cinematográfica, catálogo, ficha técnica de fragancias,
+ *    selección de presentaciones (30ml, 50ml, 100ml) y carrito con checkout vía WhatsApp.
+ * 2. **Panel Administrativo (`currentView === 'admin'`)**: Carga bajo demanda (`React.lazy`) para optimizar el bundle inicial,
+ *    protegido por sesión autenticada de Firebase Auth con verificación estricta de UIDs administradores autorizados.
+ *
+ * Persiste los catálogos y órdenes en `localStorage` ('adara_products_v2', 'adara_orders_v2', 'adara_cart_v2')
+ * manteniendo resiliencia y tolerancia a fallos en caso de que las reglas remotas de Firestore no estén conectadas.
+ *
+ * @returns Elemento raíz JSX de la aplicación.
+ */
 export const App: React.FC = () => {
   // Navigation & View state
   const [currentView, setCurrentView] = useState<'store' | 'admin'>('store');

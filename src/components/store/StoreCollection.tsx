@@ -3,13 +3,32 @@ import { Product, isPurchasableProduct, isPricedProduct, isPurchasableVariant, i
 import { formatCOP, formatProductPrice } from '../../data/mockData';
 import { Eye, Plus, SlidersHorizontal, Sparkles } from 'lucide-react';
 
+/**
+ * Propiedades para la galería de la colección de perfumes en la tienda pública.
+ */
 interface StoreCollectionProps {
+  /** Catálogo completo de fragancias cargadas. */
   products: Product[];
+  /** Cadena de búsqueda ingresada desde la barra superior. */
   searchQuery: string;
+  /** Disparador para abrir el modal inmersivo con el detalle olfativo de la fragancia. */
   onSelectProduct: (product: Product) => void;
+  /** Disparador para agregar una unidad directa de la fragancia a la bolsa de compras. */
   onAddToCart: (product: Product) => void;
 }
 
+/**
+ * Componente de galería y catálogo principal de la tienda web ADARA PARFUM.
+ *
+ * @remarks
+ * Administra el filtrado por familia olfativa dinámica (extraída de los productos reales),
+ * ordenamientos deterministas (destacados, precios ascendentes/descendentes, alfabético)
+ * y cálculo dinámico de etiquetas de precio ("Desde $ X" o "Bajo consulta") según la presencia
+ * de variantes por volumen (30ml, 50ml, 100ml) y existencias disponibles.
+ *
+ * @param props - Propiedades del componente {@link StoreCollectionProps}.
+ * @returns Elemento JSX con la grilla de tarjetas de fragancias y barra de herramientas.
+ */
 export const StoreCollection: React.FC<StoreCollectionProps> = ({
   products,
   searchQuery,

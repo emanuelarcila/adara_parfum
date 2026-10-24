@@ -21,12 +21,30 @@ import {
   pruneResolvedNotificationIds
 } from '../../services/notificationService';
 
+/**
+ * Propiedades del centro de notificaciones y alertas operativas.
+ */
 interface AdminNotificationsCenterProps {
+  /** Catálogo de productos para monitoreo de agotados y stock crítico. */
   products: Product[];
+  /** Pedidos actuales para detección de órdenes pendientes de despacho o preparación. */
   orders: Order[];
+  /** Disparador para redirigir directamente a la pestaña correspondiente a la alerta. */
   onNavigateTab: (tab: AdminTab) => void;
 }
 
+/**
+ * Centro de notificaciones contextuales y alertas operativas de ADARA PARFUM.
+ *
+ * @remarks
+ * Despliega un menú desplegable interactivo con campana e indicador numérico de no leídas.
+ * Detecta automáticamente fragancias sin existencias, existencias críticas en taller y órdenes
+ * rezagadas en preparación o despacho. Permite marcar notificaciones individuales o masivas como leídas,
+ * depura automáticamente alertas resueltas y proporciona navegación contextual directa hacia el módulo afectado.
+ *
+ * @param props - Propiedades del componente {@link AdminNotificationsCenterProps}.
+ * @returns Elemento JSX con el botón de campana y panel de alertas.
+ */
 export const AdminNotificationsCenter: React.FC<AdminNotificationsCenterProps> = ({
   products,
   orders,

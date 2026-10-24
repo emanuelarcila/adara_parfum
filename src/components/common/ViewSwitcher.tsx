@@ -1,10 +1,24 @@
+/**
+ * ADARA PARFUM — Conmutador de Vistas (Storefront vs. Control Panel)
+ *
+ * Provee un control flotante accesible para alternar entre la experiencia
+ * de e-commerce pública y la suite de administración interna.
+ */
+
+import React from 'react';
 import { Store, ShieldCheck } from 'lucide-react';
 
+/** Propiedades del conmutador de interfaces. */
 interface ViewSwitcherProps {
+  /** Vista activa en la aplicación. */
   currentView: 'store' | 'admin';
+  /** Callback para solicitar la transición de vista. */
   onSwitch: (view: 'store' | 'admin') => void;
 }
 
+/**
+ * Control flotante para alternar entre la tienda pública y el panel de administración.
+ */
 export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitch }) => {
   return (
     <aside
@@ -90,3 +104,4 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitc
     </aside>
   );
 };
+

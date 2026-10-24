@@ -1,10 +1,25 @@
 import React from 'react';
 import { ArrowUp } from 'lucide-react';
 
+/**
+ * Propiedades del pie de página de la boutique pública.
+ */
 interface StoreFooterProps {
+  /** Callback para abrir el modal o cambiar la vista hacia el panel de administración. */
   onOpenAdmin: () => void;
 }
 
+/**
+ * Pie de página institucional de ADARA PARFUM.
+ *
+ * @remarks
+ * Incluye el monograma de la marca, enlaces de navegación interna a las secciones del catálogo,
+ * canales de concierge y atención personalizada, información de la boutique en Bogotá,
+ * botón interactivo para volver al inicio ('scroll to top') y gatillo discreto de acceso al panel privado.
+ *
+ * @param props - Propiedades del componente {@link StoreFooterProps}.
+ * @returns Elemento JSX representativo del pie de página.
+ */
 export const StoreFooter: React.FC<StoreFooterProps> = ({ onOpenAdmin }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

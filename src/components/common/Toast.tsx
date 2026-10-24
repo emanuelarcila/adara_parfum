@@ -1,18 +1,36 @@
+/**
+ * ADARA PARFUM — Sistema de Notificaciones Toast en Pantalla
+ *
+ * Renderiza alertas flotantes no bloqueantes en la esquina inferior izquierda
+ * para informar resultados de operaciones (éxito, advertencia o información).
+ */
+
 import React from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
+/** Estructura de un mensaje toast encolado. */
 export interface ToastMessage {
+  /** Identificador único del mensaje. */
   id: string;
+  /** Tipo de alerta para selección de color e icono. */
   type: 'success' | 'warning' | 'info';
+  /** Título principal destacado. */
   title: string;
+  /** Detalle opcional del evento. */
   message?: string;
 }
 
+/** Propiedades del contenedor de toasts. */
 interface ToastProps {
+  /** Lista de mensajes activos por mostrar. */
   toasts: ToastMessage[];
+  /** Callback para descartar y remover una notificación por ID. */
   onDismiss: (id: string) => void;
 }
 
+/**
+ * Contenedor de notificaciones flotantes temporales.
+ */
 export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
   if (toasts.length === 0) return null;
 
@@ -84,3 +102,4 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
     </div>
   );
 };
+

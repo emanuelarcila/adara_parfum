@@ -3,12 +3,22 @@ import { Product } from '../../types';
 import { formatCOP } from '../../data/mockData';
 import { AlertTriangle, CheckCircle, X } from 'lucide-react';
 
+/**
+ * Propiedades del módulo de gestión de inventario y taller.
+ */
 interface AdminInventoryProps {
+  /** Catálogo de productos con información de existencias. */
   products: Product[];
+  /** Callback para asentar ajustes manuales de stock con justificación auditable. */
   onAdjustStock: (productId: string, delta: number, reason: string, variantId?: string) => void;
 }
 
-/** Devuelve el stock total efectivo de un producto (suma de variantes si aplica o stock base). */
+/**
+ * Devuelve el stock total efectivo de un producto (suma de variantes si aplica o stock base).
+ *
+ * @param p - Fragancia a cuantificar.
+ * @returns Número total de unidades físicas disponibles.
+ */
 function getProductEffectiveStock(p: Product): number {
   if (Array.isArray(p.variants) && p.variants.length > 0) {
     return p.variants.reduce((sum, v) => sum + (typeof v.stock === 'number' ? v.stock : 0), 0);
@@ -16,7 +26,12 @@ function getProductEffectiveStock(p: Product): number {
   return typeof p.stock === 'number' ? p.stock : 0;
 }
 
-/** Devuelve la valorización en COP de un producto (suma de variante.stock * variante.priceCOP). */
+/**
+ * Devuelve la valorización en COP de un producto (suma de variante.stock * variante.priceCOP).
+ *
+ * @param p - Fragancia a valorizar.
+ * @returns Valorización monetaria total en pesos colombianos.
+ */
 function getProductEffectiveValue(p: Product): number {
   if (Array.isArray(p.variants) && p.variants.length > 0) {
     return p.variants.reduce((sum, v) => {
@@ -28,7 +43,12 @@ function getProductEffectiveValue(p: Product): number {
   return (typeof p.stock === 'number' ? p.stock : 0) * (typeof p.priceCOP === 'number' ? p.priceCOP : 0);
 }
 
-/** Evalúa si el producto o alguna de sus variantes está en estado crítico (stock <= umbral). */
+/**
+ * Evalúa si el producto o alguna de sus variantes está en estado crítico (stock <= umbral).
+ *
+ * @param p - Fragancia a evaluar.
+ * @returns `true` si el stock está por debajo o igual al umbral mínimo de seguridad.
+ */
 function isProductCritical(p: Product): boolean {
   if (Array.isArray(p.variants) && p.variants.length > 0) {
     return p.variants.some((v) => {
@@ -39,7 +59,12 @@ function isProductCritical(p: Product): boolean {
   return (typeof p.stock === 'number' ? p.stock : 0) <= (p.threshold ?? 3);
 }
 
-/** Evalúa si el producto o todas sus variantes están agotadas (0 uds). */
+/**
+ * Evalúa si el producto o todas sus variantes están agotadas (0 uds).
+ *
+ * @param p - Fragancia a evaluar.
+ * @returns `true` si todas las presentaciones tienen 0 unidades.
+ */
 function isProductFullyOutOfStock(p: Product): boolean {
   if (Array.isArray(p.variants) && p.variants.length > 0) {
     return p.variants.every((v) => (typeof v.stock === 'number' ? v.stock : 0) === 0);
@@ -47,6 +72,18 @@ function isProductFullyOutOfStock(p: Product): boolean {
   return (typeof p.stock === 'number' ? p.stock : 0) === 0;
 }
 
+/**
+ * Módulo de control de inventario físico, valoración de existencias y ajustes manuales.
+ *
+ * @remarks
+ * Calcula el inventario global consolidado y valorizado a precios de catálogo,
+ * supervisa umbrales críticos de seguridad por variante y fragancia base,
+ * y permite abrir modales de ajuste rápido (+delta para maceración/ingresos, -delta para mermas/roturas)
+ * con selección explícita de presentación cuando el producto maneja variantes.
+ *
+ * @param props - Propiedades del componente {@link AdminInventoryProps}.
+ * @returns Elemento JSX representativo del módulo de almacén.
+ */
 export const AdminInventory: React.FC<AdminInventoryProps> = ({
   products,
   onAdjustStock

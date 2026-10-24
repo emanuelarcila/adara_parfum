@@ -438,7 +438,10 @@ export function isConfirmedSale(order: Order): boolean {
 }
 
 /**
- * Calcula las ventas confirmadas y el monto total en COP.
+ * Calcula las ventas confirmadas y el monto total en COP para un conjunto de órdenes.
+ *
+ * @param orders - Conjunto de órdenes a evaluar.
+ * @returns Objeto {@link ConfirmedSalesResult} con el conteo, monto total en COP y lista de órdenes confirmadas.
  */
 export function calculateConfirmedSales(orders: Order[]): ConfirmedSalesResult {
   if (!Array.isArray(orders) || orders.length === 0) {
@@ -460,9 +463,14 @@ export function calculateConfirmedSales(orders: Order[]): ConfirmedSalesResult {
 
 /**
  * Cuenta pedidos recibidos clasificados por canal de venta.
- * IMPORTANTE (Regla de negocio Fase 2.3):
+ *
+ * @remarks
+ * Regla de negocio Fase 2.3:
  * Un pedido cancelado SE CONTABILIZA en el recuento histórico de pedidos recibidos (`totalReceived`),
- * pero se aísla en `cancelledCount` y queda excluido de `confirmedSalesCount` e ingresos.
+ * pero se aísla en `cancelledCount` y queda excluido de `confirmedSalesCount` e ingresos por canal.
+ *
+ * @param orders - Lista de pedidos a contabilizar.
+ * @returns Resumen de métricas de canales {@link ChannelMetrics}.
  */
 export function countOrdersByChannel(orders: Order[]): ChannelMetrics {
   const initialByChannel: ChannelMetrics['byChannel'] = {
@@ -706,6 +714,10 @@ export function getTopSellingFragrances(orders: Order[], limit = 4): TopFragranc
 
 /**
  * Calcula la distribución real de ingresos por familia olfativa a partir de las órdenes confirmadas.
+ *
+ * @param orders - Órdenes a procesar.
+ * @param products - Catálogo de productos para resolver la familia olfativa de cada fragancia.
+ * @returns Lista ordenada descendentemente por ingresos {@link OlfactiveFamilyRevenue}.
  */
 export function calculateRevenueByOlfactiveFamily(
   orders: Order[],
@@ -757,6 +769,11 @@ export function calculateRevenueByOlfactiveFamily(
 
 /**
  * Calcula la comparativa de ingresos de ventas confirmadas frente al periodo consecutivo anterior.
+ *
+ * @param orders - Todas las órdenes históricas.
+ * @param period - Periodo actual de análisis.
+ * @param referenceDate - Fecha de referencia para el cálculo de intervalos.
+ * @returns Resumen comparativo {@link PeriodComparison}.
  */
 export function calculatePeriodComparison(
   orders: Order[],
@@ -811,7 +828,14 @@ export function calculatePeriodComparison(
 }
 
 /**
- * Función maestra de consolidación de métricas para el Dashboard.
+ * Función maestra de consolidación de métricas para el Dashboard gerencial.
+ *
+ * @param orders - Todas las órdenes disponibles en el sistema.
+ * @param period - Rango de fechas seleccionado ('today', 'this_week', 'this_month', 'last_month', 'this_year', 'all_time', 'custom').
+ * @param referenceDate - Fecha base para el cálculo relativo (por defecto hoy).
+ * @param customStart - Fecha inicial si period === 'custom' ('YYYY-MM-DD').
+ * @param customEnd - Fecha final si period === 'custom' ('YYYY-MM-DD').
+ * @returns Objeto integral {@link DashboardMetricsSummary} listo para renderizar paneles y gráficos.
  */
 export function calculateDashboardMetrics(
   orders: Order[],

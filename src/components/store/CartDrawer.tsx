@@ -4,17 +4,36 @@ import { formatCOP } from '../../data/mockData';
 import { createWhatsAppOrder } from '../../services/orderInventoryService';
 import { X, Plus, Minus, Trash2, ArrowRight, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
 
+/**
+ * Propiedades del cajón lateral (drawer) de la bolsa de compras.
+ */
 interface CartDrawerProps {
+  /** Indica si el drawer lateral se encuentra visible en pantalla. */
   isOpen: boolean;
+  /** Disparador para cerrar el cajón lateral. */
   onClose: () => void;
+  /** Lista de artículos presentes actualmente en el carrito. */
   items: CartItem[];
+  /** Función para incrementar o decrementar la cantidad de una línea específica. */
   onUpdateQuantity: (productId: string, delta: number, variantId?: string) => void;
+  /** Función para remover completamente una línea del carrito. */
   onRemoveItem: (productId: string, variantId?: string) => void;
+  /** Función para vaciar la totalidad de los artículos de la bolsa. */
   onClearCart: () => void;
+  /** Callback opcional invocado al despachar la orden hacia WhatsApp para persistirla en la cola de pedidos. */
   onInitiateWhatsAppOrder?: (order: Order) => void;
 }
 
-// Helpers para resolver de forma segura datos de variante con compatibilidad retrospectiva
+/**
+ * Resuelve de forma segura el precio unitario en COP de un artículo del carrito.
+ *
+ * @remarks
+ * Mantiene compatibilidad retrospectiva priorizando `unitPriceCOP` congelado en la línea,
+ * o consultando la variante respectiva (`variantId`) o el precio base del producto.
+ *
+ * @param item - Artículo del carrito a evaluar {@link CartItem}.
+ * @returns Precio numérico en COP o `null` si no tiene precio asignado.
+ */
 export const getItemUnitPrice = (item: CartItem): number | null => {
   if (typeof item.unitPriceCOP === 'number') {
     return item.unitPriceCOP;
@@ -26,6 +45,12 @@ export const getItemUnitPrice = (item: CartItem): number | null => {
   return typeof item.product.priceCOP === 'number' ? item.product.priceCOP : null;
 };
 
+/**
+ * Obtiene la denominación de volumen o presentación del artículo (ej. '30ml', '50ml', '100ml').
+ *
+ * @param item - Artículo del carrito {@link CartItem}.
+ * @returns Cadena con el volumen o texto vacío si no está especificado.
+ */
 export const getItemVolume = (item: CartItem): string => {
   if (item.volume && item.volume.trim().length > 0) return item.volume;
   if (item.variantId && Array.isArray(item.product.variants)) {
@@ -35,6 +60,12 @@ export const getItemVolume = (item: CartItem): string => {
   return item.product.volume || '';
 };
 
+/**
+ * Determina el límite máximo de existencias físicas disponibles para el artículo del carrito.
+ *
+ * @param item - Línea del carrito {@link CartItem}.
+ * @returns Número entero con el stock disponible o 99 por defecto en catálogos sin control de existencias.
+ */
 export const getItemMaxStock = (item: CartItem): number => {
   if (item.variantId && Array.isArray(item.product.variants)) {
     const v = item.product.variants.find((vr) => vr.id === item.variantId);
@@ -45,6 +76,18 @@ export const getItemMaxStock = (item: CartItem): number => {
   return typeof item.product.stock === 'number' ? item.product.stock : 99;
 };
 
+/**
+ * Cajón lateral deslizante (Drawer) de la bolsa de compras de ADARA PARFUM.
+ *
+ * @remarks
+ * Despliega los artículos añadidos con desglose de presentación (volumen), precio unitario y subtotal.
+ * Valida que no existan artículos sin precio o con cantidades superiores al inventario disponible.
+ * Genera el pedido formal de WhatsApp en estado 'pending' (sin descontar inventario antes de la confirmación)
+ * y redirige al chat oficial de la boutique con el mensaje preformateado.
+ *
+ * @param props - Propiedades del componente {@link CartDrawerProps}.
+ * @returns Elemento JSX que renderiza el cajón o `null` si `isOpen === false`.
+ */
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,

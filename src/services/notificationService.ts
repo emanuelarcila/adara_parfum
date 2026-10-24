@@ -1,47 +1,67 @@
-/**
- * ADARA PARFUM — Servicio del Centro de Notificaciones Administrativo (Fase 2.4B)
- *
- * Maneja la generación determinista, deduplicación y persistencia de alertas
- * operativas para el panel de control:
- * 1. Pedidos pendientes de revisión (tienda web, WhatsApp, etc.).
- * 2. Pedidos cancelados recientes que requieren atención o verificación de inventario.
- * 3. Productos con existencias iguales o inferiores al umbral mínimo de seguridad.
- * 4. Productos completamente agotados (0 unidades).
- * 5. Evaluación de variantes independientes (30ml, 50ml, 100ml) cuando aplique.
- * 6. Persistencia del estado leído/no leído en localStorage de forma segura e idempotente.
- */
+// ============================================================================
+// SECCIÓN 1: IMPORTACIONES Y DEPENDENCIAS
+// ============================================================================
 
 import { Product, Order } from '../types';
 import { parseOrderTimestamp } from './commercialAnalyticsService';
 
-/** Ventana máxima para alertar sobre cancelaciones (7 días en milisegundos) */
+// ============================================================================
+// SECCIÓN 2: TIPOS Y CONSTANTES DE NOTIFICACIÓN
+// ============================================================================
+
+/** Ventana máxima para alertar sobre cancelaciones (7 días en milisegundos). */
 export const CANCELLATION_NOTIFICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Tipos de alerta operativa gestionados por el panel administrativo. */
 export type NotificationType =
   | 'order_pending'
   | 'order_cancelled'
   | 'stock_low'
   | 'stock_out';
 
+/** Nivel de urgencia o severidad visual de la notificación. */
 export type NotificationSeverity = 'warning' | 'danger' | 'info';
 
+/**
+ * Estructura de una notificación del panel de control de ADARA PARFUM.
+ */
 export interface AdminNotification {
+  /** Identificador único e idempotente de la alerta (ej. `'notif-stock-low-adh-120-30ml'`). */
   id: string;
+  /** Categoría técnica de la notificación. */
   type: NotificationType;
+  /** Título conciso del evento. */
   title: string;
+  /** Detalle descriptivo de la acción requerida. */
   message: string;
+  /** Fecha del evento o estado relativo. */
   date: string;
+  /** Indicador de si el administrador ya leyó la alerta. */
   read: boolean;
+  /** Pestaña del panel a la que redirige al hacer clic (`'orders'` o `'inventory'`). */
   targetTab: 'orders' | 'inventory';
+  /** ID del pedido o producto sobre el cual navegar al interactuar. */
   targetId?: string;
+  /** Nivel de severidad para estilización visual de la tarjeta. */
   severity: NotificationSeverity;
+  /** Volumen o presentación involucrada si la alerta proviene de una variante. */
   skuOrVolume?: string;
 }
 
+/** Clave en localStorage para persistencia de notificaciones marcadas como leídas. */
 export const NOTIFICATIONS_STORAGE_KEY = 'adara_notifications_read_v1';
 
+// ============================================================================
+// SECCIÓN 3: PERSISTENCIA LOCAL DE ESTADO LEÍDO / NO LEÍDO
+// ============================================================================
+
 /**
- * Lee de forma segura los IDs de notificaciones leídas desde localStorage.
+ * Lee de forma segura los identificadores de notificaciones marcadas como leídas desde localStorage.
+ *
+ * @remarks
+ * Es resiliente ante JSON corrupto, entornos sin acceso a almacenamiento o datos no serializables.
+ *
+ * @returns Conjunto (`Set<string>`) con los IDs leídos previamente.
  */
 export function getStoredReadNotificationIds(): Set<string> {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -63,7 +83,9 @@ export function getStoredReadNotificationIds(): Set<string> {
 }
 
 /**
- * Guarda de forma segura los IDs de notificaciones leídas en localStorage.
+ * Persiste de forma segura el conjunto de IDs leídos en localStorage.
+ *
+ * @param ids - Conjunto o arreglo de cadenas con los IDs de alertas ya leídas.
  */
 export function saveStoredReadNotificationIds(ids: Set<string> | string[]): void {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -79,7 +101,11 @@ export function saveStoredReadNotificationIds(ids: Set<string> | string[]): void
 }
 
 /**
- * Agrega un ID al conjunto de leídos y lo persiste en localStorage.
+ * Agrega un ID al conjunto de leídos y lo sincroniza de inmediato en el almacenamiento local.
+ *
+ * @param id - Identificador único de la alerta.
+ * @param currentReadIds - Conjunto actual de IDs leídos en memoria.
+ * @returns Nuevo conjunto (`Set<string>`) inmutable con el ID añadido.
  */
 export function markNotificationAsRead(id: string, currentReadIds: Set<string>): Set<string> {
   const updated = new Set(currentReadIds);
@@ -89,7 +115,11 @@ export function markNotificationAsRead(id: string, currentReadIds: Set<string>):
 }
 
 /**
- * Marca todas las notificaciones activas como leídas y persiste el estado.
+ * Marca todas las notificaciones activas como leídas en una sola operación atómica.
+ *
+ * @param notifications - Lista actual de notificaciones activas.
+ * @param currentReadIds - Conjunto actual de IDs leídos.
+ * @returns Nuevo conjunto de IDs leídos actualizado.
  */
 export function markAllNotificationsAsRead(
   notifications: AdminNotification[],
@@ -103,16 +133,28 @@ export function markAllNotificationsAsRead(
   return updated;
 }
 
+// ============================================================================
+// SECCIÓN 4: GENERACIÓN Y EVALUACIÓN DE ALERTAS OPERATIVAS
+// ============================================================================
+
 /**
  * Genera la lista completa y deduplicada de notificaciones activas
  * en base al estado actual de productos, pedidos y lectura.
  *
+ * @remarks
  * Características deterministas:
  * - Los IDs son estables e idempotentes entre renders.
  * - Una recarga o re-render NO genera notificaciones duplicadas.
  * - Una alerta de inventario leída permanece visible mientras el stock siga bajo/agotado.
  * - Si el stock se restituye por encima del umbral, la alerta desaparece automáticamente.
  * - Si un pedido pendiente pasa a otro estado, la alerta pendiente desaparece automáticamente.
+ * - Evalúa de manera independiente variantes de 30ml, 50ml y 100ml cuando existen.
+ *
+ * @param products - Catálogo actual de fragancias.
+ * @param orders - Historial de pedidos registrados.
+ * @param readIds - Conjunto de IDs leídos para determinar el estado visual de cada alerta.
+ * @param referenceDate - Fecha o marca temporal base para evaluar la ventana de 7 días (por defecto `Date.now()`).
+ * @returns Lista ordenada de notificaciones {@link AdminNotification} priorizando no leídas y mayor severidad.
  */
 export function generateNotifications(
   products: Product[],
@@ -301,8 +343,15 @@ export function generateNotifications(
   });
 }
 
+// ============================================================================
+// SECCIÓN 5: MÉTRICAS Y DEPURACIÓN DE ALERTAS RESUELTAS
+// ============================================================================
+
 /**
- * Calcula el número de notificaciones no leídas activas.
+ * Calcula el número de notificaciones no leídas activas para el contador del panel.
+ *
+ * @param notifications - Lista de notificaciones evaluadas.
+ * @returns Total de alertas con `read === false`.
  */
 export function calculateUnreadCount(notifications: AdminNotification[]): number {
   if (!Array.isArray(notifications)) return 0;
@@ -312,10 +361,16 @@ export function calculateUnreadCount(notifications: AdminNotification[]): number
 /**
  * Sincroniza y depura los IDs leídos en localStorage para eliminar alertas que ya se resolvieron
  * (por ejemplo, producto cuyo stock se recuperó o pedido cancelado que superó los 7 días).
- * Esto garantiza que:
- * 1. Si en el futuro la condición vuelve a cumplirse, reaparezca como NO leída.
- * 2. El almacenamiento en localStorage no crezca indefinidamente.
- * 3. Mientras la alerta siga activa, permanezca leída sin desaparecer del panel.
+ *
+ * @remarks
+ * Garantías de integridad:
+ * 1. Si en el futuro la condición vuelve a cumplirse, reaparece como NO leída.
+ * 2. Previene que el almacenamiento en localStorage crezca indefinidamente.
+ * 3. Mientras la alerta siga activa, permanece leída sin desaparecer del panel.
+ *
+ * @param activeNotifications - Lista de alertas vigentes generadas en el render actual.
+ * @param currentReadIds - Conjunto de IDs leídos guardados previamente.
+ * @returns Conjunto depurado conteniendo únicamente IDs de alertas que aún están activas.
  */
 export function pruneResolvedNotificationIds(
   activeNotifications: AdminNotification[],

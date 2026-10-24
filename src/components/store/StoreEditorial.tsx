@@ -1,6 +1,15 @@
 import React from 'react';
 import { Compass, Flame, Droplets } from 'lucide-react';
 
+/**
+ * Sección de narrativa editorial y manifiesto de marca ADARA PARFUM.
+ *
+ * @remarks
+ * Desarrolla el universo conceptual de la casa de perfumería a través de 3 pilares clave:
+ * maceración lenta, orígenes botánicos nobles y arquitectura aromática de fijación prolongada.
+ *
+ * @returns Elemento JSX representativo de la sección de filosofía y valores.
+ */
 export const StoreEditorial: React.FC = () => {
   return (
     <section

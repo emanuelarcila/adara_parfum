@@ -10,12 +10,30 @@ import {
 import { formatCOP, formatProductPrice } from '../../data/mockData';
 import { X, Plus, Minus, ShoppingBag, Sparkles } from 'lucide-react';
 
+/**
+ * Propiedades del modal de ficha técnica y detalle inmersivo de la fragancia.
+ */
 interface ProductDetailModalProps {
+  /** Fragancia seleccionada para desplegar o null si el modal está cerrado. */
   product: Product | null;
+  /** Disparador para cerrar el modal (clic en overlay, tecla Escape o botón de cierre). */
   onClose: () => void;
+  /** Disparador para agregar la cantidad y variante seleccionada al carrito de compras. */
   onAddToCart: (product: Product, quantity: number, selectedVariant?: ProductVariantItem) => void;
 }
 
+/**
+ * Modal inmersivo para la inspección detallada de una fragancia en ADARA PARFUM.
+ *
+ * @remarks
+ * Proporciona una vista cinematográfica con pirámide olfativa completa (salida, corazón, fondo),
+ * acordes principales, descripción poética, selector dinámico de variante (ej. 30ml, 50ml, 100ml)
+ * con actualización en tiempo real del precio unitario y existencias disponibles, control de cantidad
+ * acotado al stock físico real, y cierre accesible mediante tecla Escape y bloqueo de scroll en el body.
+ *
+ * @param props - Propiedades del componente {@link ProductDetailModalProps}.
+ * @returns Elemento modal interactivo o `null` si no hay producto activo.
+ */
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
   onClose,

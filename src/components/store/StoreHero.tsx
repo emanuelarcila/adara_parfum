@@ -1,6 +1,16 @@
 import React from 'react';
 import { ArrowDownRight, Sparkles } from 'lucide-react';
 
+/**
+ * Sección Hero principal de la experiencia de compra de ADARA PARFUM.
+ *
+ * @remarks
+ * Proporciona el impacto visual inicial de la marca empleando gradientes oscuros obsidianos,
+ * iluminación volumétrica radial dorada y tipografía de alto contraste editorial.
+ * Incluye llamada a la acción (CTA) con ancla suave hacia la galería '#coleccion'.
+ *
+ * @returns Elemento JSX que renderiza la portada inmersiva de la boutique.
+ */
 export const StoreHero: React.FC = () => {
   return (
     <section

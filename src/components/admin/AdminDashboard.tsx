@@ -13,13 +13,32 @@ import {
 } from 'lucide-react';
 import { AdminTab } from './AdminLayout';
 
+/**
+ * Propiedades recibidas por el panel de métricas y resumen gerencial.
+ */
 interface AdminDashboardProps {
+  /** Lista total de pedidos del sistema. */
   orders: Order[];
+  /** Catálogo de productos para monitoreo de stock bajo. */
   products: Product[];
+  /** Periodo temporal activo para el cálculo de estadísticas. */
   selectedPeriod: DateRange;
+  /** Disparador para redirigir la navegación hacia otra pestaña del panel. */
   onNavigateTab: (tab: AdminTab) => void;
 }
 
+/**
+ * Tablero de control ejecutivo y operacional de ADARA PARFUM.
+ *
+ * @remarks
+ * Sintetiza los indicadores clave de desempeño (KPIs): ventas confirmadas en COP,
+ * pedidos recibidos desglosados (web, boutique, cancelados), unidades vendidas vs despachadas,
+ * ticket promedio, comparativa porcentual frente al periodo anterior, gráfico SVG interactivo
+ * de tendencia mensual, ranking de fragancias más vendidas y alertas críticas de existencias bajas.
+ *
+ * @param props - Propiedades del componente {@link AdminDashboardProps}.
+ * @returns Elemento JSX que renderiza el panel de mando.
+ */
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   orders,
   products,

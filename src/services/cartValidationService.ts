@@ -1,16 +1,35 @@
+// ============================================================================
+// SECCIÓN 1: IMPORTACIONES Y DEPENDENCIAS
+// ============================================================================
+
 import { Product, CartItem, ProductVariantItem } from '../types';
+
+// ============================================================================
+// SECCIÓN 2: TIPOS Y NOTIFICACIONES DE VALIDACIÓN
+// ============================================================================
 
 /**
  * Notificación emitida cuando se detecta una discrepancia entre el estado local
  * del carrito y la verdad autoritativa del catálogo de productos.
+ *
+ * @remarks
+ * Los avisos permiten retroalimentar al usuario de forma transparente cuando un precio
+ * se corrige, un stock se acota al límite físico disponible o un ítem inactivo se remueve.
  */
 export interface CartValidationNotice {
+  /** ID del producto que presentó la discrepancia. */
   productId: string;
+  /** ID de la presentación o variante si aplica. */
   variantId?: string;
+  /** Nombre visible del producto para el mensaje al comprador. */
   productName: string;
+  /** Categoría técnica de la inconsistencia detectada. */
   type: 'price_corrected' | 'quantity_clamped' | 'item_removed' | 'variant_missing';
+  /** Mensaje explicativo legible para interfaz de usuario. */
   message: string;
+  /** Valor numérico anterior en el carrito (precio o cantidad). */
   previousValue?: number;
+  /** Valor numérico oficial corregido y autorizado. */
   newValue?: number;
 }
 
@@ -18,11 +37,19 @@ export interface CartValidationNotice {
  * Resultado estructurado de la reconciliación del carrito contra el catálogo.
  */
 export interface CartValidationResult {
+  /** Lista depurada de ítems con precios y existencias autorizadas. */
   validItems: CartItem[];
+  /** Avisos de ajustes o correcciones realizadas durante el cotejo. */
   notices: CartValidationNotice[];
+  /** `true` si se aplicó al menos una corrección sobre los ítems del carrito. */
   hasChanges: boolean;
+  /** Subtotal consolidado en COP de las líneas válidas. */
   totalCOP: number;
 }
+
+// ============================================================================
+// SECCIÓN 3: RECONCILIACIÓN Y AUDITORÍA ANTI-MANIPULACIÓN
+// ============================================================================
 
 /**
  * NOTA DE SEGURIDAD ARQUITECTÓNICA (FASE PRE-FIRESTORE):
@@ -43,9 +70,10 @@ export interface CartValidationResult {
 /**
  * Valida y reconcilia un arreglo de ítems del carrito contra el catálogo autoritativo de productos.
  *
+ * @remarks
  * Reglas de integridad aplicadas:
- * 1. Si el producto ya no existe en el catálogo o no está activo ('active'), se remueve de la bolsa.
- * 2. Si el ítem tiene variante (variantId):
+ * 1. Si el producto ya no existe en el catálogo o no está activo (`'active'`), se remueve de la bolsa.
+ * 2. Si el ítem tiene variante (`variantId`):
  *    - Se verifica que la variante exista y no esté descontinuada.
  *    - Se toma el precio real de la variante como fuente de verdad (`variant.priceCOP`).
  *    - Si el precio local difería, se actualiza al precio autoritativo.
@@ -55,6 +83,10 @@ export interface CartValidationResult {
  *    - Si el precio local difería, se actualiza al precio autoritativo.
  *    - Se valida el stock del producto principal.
  * 4. La cantidad se normaliza como entero positivo (mínimo 1).
+ *
+ * @param cartItems - Ítems persistidos o en memoria del carrito del usuario.
+ * @param catalog - Lista de productos autoritativos oficiales del catálogo.
+ * @returns Objeto {@link CartValidationResult} con ítems válidos, avisos y total recalculado.
  */
 export function reconcileCartWithCatalog(
   cartItems: CartItem[],
@@ -95,7 +127,7 @@ export function reconcileCartWithCatalog(
       hasChanges = true;
     }
 
-    // 2. Manejo de variantes
+    // 2. Manejo de variantes multi-presentación (30ml, 50ml, 100ml)
     if (item.variantId && Array.isArray(authoritativeProduct.variants) && authoritativeProduct.variants.length > 0) {
       const authoritativeVariant = authoritativeProduct.variants.find((v) => v.id === item.variantId);
 
@@ -153,7 +185,7 @@ export function reconcileCartWithCatalog(
         quantity: effectiveQty
       });
     } else {
-      // 3. Manejo estándar sin variante
+      // 3. Manejo estándar de producto sin variantes
       const expectedPrice = typeof authoritativeProduct.priceCOP === 'number' && authoritativeProduct.priceCOP > 0
         ? authoritativeProduct.priceCOP
         : null;
@@ -194,6 +226,7 @@ export function reconcileCartWithCatalog(
     }
   }
 
+  // Recalcular subtotal consolidado sobre precios verificados
   const totalCOP = validItems.reduce((acc, it) => {
     const p = it.unitPriceCOP && it.unitPriceCOP > 0 ? it.unitPriceCOP : 0;
     return acc + p * it.quantity;
