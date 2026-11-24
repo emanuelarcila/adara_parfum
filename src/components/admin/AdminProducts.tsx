@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Product, OlfactiveFamily } from '../../types';
-import { formatCOP, getProductImageUrl } from '../../data/mockData';
+import { formatCOP, getProductImageUrl, resolveImageUrl } from '../../data/mockData';
 import { Plus, Search, Edit2, Pause, Play, Trash2, X } from 'lucide-react';
 
 /**
@@ -690,7 +690,7 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({
                   />
                   {formImage ? (
                     <img
-                      src={formImage}
+                      src={resolveImageUrl(formImage)}
                       alt="Previsualización"
                       onError={(e) => {
                         (e.currentTarget as HTMLElement).style.display = 'none';

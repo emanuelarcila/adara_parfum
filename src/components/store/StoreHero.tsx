@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowDownRight, Sparkles } from 'lucide-react';
+import { resolveImageUrl } from '../../data/mockData';
 
 /**
  * Sección Hero principal de la experiencia de compra de ADARA PARFUM.
@@ -154,7 +155,7 @@ export const StoreHero: React.FC = () => {
           >
             <div style={{ position: 'relative', width: '100%', paddingTop: '115%', overflow: 'hidden' }}>
               <img
-                src="/images/hero_adara.jpg"
+                src={resolveImageUrl('/images/hero_adara.jpg')}
                 alt="Frasco de alta perfumería ADARA PARFUM en obsidiana y oro"
                 style={{
                   position: 'absolute',
