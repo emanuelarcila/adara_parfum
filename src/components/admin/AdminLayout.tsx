@@ -94,6 +94,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
+      className="admin-layout-root"
       style={{
         display: 'flex',
         minHeight: '100vh',
@@ -103,6 +104,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     >
       {/* Sidebar */}
       <aside
+        className="admin-sidebar"
         style={{
           width: '260px',
           backgroundColor: '#0e0e0c',

@@ -9,10 +9,19 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: true,
     open: false
   },
   build: {
     sourcemap: false,
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+          vendor: ['react', 'react-dom']
+        }
+      }
+    }
   }
 });

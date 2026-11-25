@@ -284,3 +284,380 @@ h1, h2, h3, h4, h5, h6 {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   SISTEMA RESPONSIVE ESTRUCTURAL (ADARA PARFUM)
+   Garantiza soporte fluido desde 320px hasta pantallas ultra-anchas
+   ========================================================================== */
+
+/* 1. Menú y Barra de Navegación */
+.mobile-menu-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-nav {
+    display: none !important;
+  }
+  .mobile-menu-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .navbar-grid {
+    grid-template-columns: auto 1fr auto !important;
+    gap: 12px !important;
+  }
+  .mobile-nav-dropdown {
+    display: block !important;
+  }
+}
+
+/* 2. Sección Hero y Portada 3D */
+.hero-section-root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.hero-grid {
+  grid-template-columns: minmax(320px, 1.15fr) minmax(320px, 0.85fr);
+}
+
+/* Iluminación de bordes dorados del Hero (alineada con las tarjetas del catálogo) */
+.hero-visual-frame {
+  border: 1px solid rgba(198, 161, 91, 0.28);
+  box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.85),
+              0 0 20px -8px var(--color-gold-glow);
+  transition: border-color 0.5s var(--ease-cinematic), box-shadow 0.5s var(--ease-cinematic), transform 0.5s var(--ease-cinematic);
+}
+
+.hero-visual-frame:hover {
+  border-color: rgba(198, 161, 91, 0.65);
+  box-shadow: 0 32px 80px -15px rgba(0, 0, 0, 0.95),
+              0 0 36px 0px rgba(198, 161, 91, 0.38),
+              inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.hero-visual-frame:hover .hero-monolith-image {
+  transform: scale(1.04);
+}
+
+@media (max-width: 900px) {
+  .hero-content-wrapper {
+    grid-template-columns: 1fr !important;
+    text-align: center;
+    padding-top: 80px;
+    padding-bottom: 60px;
+  }
+  .hero-narrative-box {
+    margin: 0 auto !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .hero-narrative-box p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-cta-row {
+    justify-content: center !important;
+  }
+  .hero-readability-vignette {
+    background: radial-gradient(circle at 50% 60%, rgba(11, 11, 10, 0.5) 0%, rgba(11, 11, 10, 0.94) 85%) !important;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 48px !important;
+    text-align: center;
+  }
+  .hero-narrative {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .hero-narrative p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-cta-group {
+    justify-content: center !important;
+  }
+  .hero-visual-frame {
+    max-width: 360px !important;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-bottom-badge {
+    display: none !important;
+  }
+  .hero-cta-row {
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100%;
+  }
+  .hero-cta-row a {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-cta-group {
+    flex-direction: column;
+    gap: 16px !important;
+    width: 100%;
+  }
+  .hero-cta-group a {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 3. Catálogo y Cuadrícula de Fragancias */
+.collection-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+@media (max-width: 640px) {
+  .collection-grid {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+  .collection-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+}
+
+/* 4. Modal de Ficha Técnica (ProductDetailModal) */
+.modal-grid {
+  grid-template-columns: minmax(300px, 1.05fr) minmax(320px, 1.25fr);
+}
+
+.modal-action-bar {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.modal-action-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.modal-action-bar-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-tertiary);
+}
+
+.modal-action-bar-price {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-ivory);
+  margin: 0;
+}
+
+.modal-stepper-container {
+  display: flex;
+  align-items: center;
+  background-color: rgba(11, 11, 10, 0.8);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.modal-stepper-btn {
+  background: none;
+  border: none;
+  color: var(--color-ivory);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.modal-stepper-value {
+  min-width: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.modal-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .modal-container {
+    max-height: 92vh !important;
+    margin: 12px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .modal-grid {
+    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .modal-image-pane {
+    min-height: 190px !important;
+    max-height: 220px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    flex-shrink: 0 !important;
+  }
+  .modal-image-pane img {
+    max-height: 220px !important;
+    object-position: center 30% !important;
+  }
+  .modal-content-pane {
+    padding: 20px 18px 16px !important;
+    flex: 1 1 auto !important;
+  }
+  .modal-close-btn {
+    top: 12px !important;
+    right: 12px !important;
+    width: 34px !important;
+    height: 34px !important;
+  }
+  .modal-notes-box {
+    padding: 14px !important;
+    margin-bottom: 18px !important;
+  }
+  .modal-variants-section {
+    margin-bottom: 18px !important;
+  }
+  .modal-action-bar {
+    position: sticky !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 30 !important;
+    background: rgba(14, 14, 12, 0.96) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-top: 1px solid rgba(198, 161, 91, 0.35) !important;
+    margin-left: -18px !important;
+    margin-right: -18px !important;
+    margin-bottom: -16px !important;
+    padding: 14px 18px !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.75) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .modal-container {
+    max-height: 94vh !important;
+    margin: 6px !important;
+  }
+  .modal-image-pane {
+    min-height: 170px !important;
+    max-height: 190px !important;
+  }
+  .modal-image-pane img {
+    max-height: 190px !important;
+  }
+  .modal-content-pane {
+    padding: 16px 14px 12px !important;
+  }
+  .modal-content-pane h2 {
+    font-size: 26px !important;
+  }
+  .modal-action-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin-left: -14px !important;
+    margin-right: -14px !important;
+    margin-bottom: -12px !important;
+    padding: 12px 14px !important;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .modal-action-bar-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  .modal-action-bar-price {
+    font-size: 20px !important;
+  }
+  .modal-action-btn {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+}
+
+/* 5. Selector Flotante de Vistas (ViewSwitcher) */
+@media (max-width: 640px) {
+  .view-switcher-container {
+    bottom: 12px !important;
+    right: 12px !important;
+  }
+  .view-switcher-btn {
+    padding: 6px 12px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+  }
+  .view-switcher-text-full {
+    display: none !important;
+  }
+  .view-switcher-text-short {
+    display: inline !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .view-switcher-text-short {
+    display: none !important;
+  }
+  .view-switcher-text-full {
+    display: inline !important;
+  }
+}
+
+/* 6. Panel Administrativo en Pantallas Reducidas */
+@media (max-width: 860px) {
+  .admin-layout-root {
+    flex-direction: column !important;
+  }
+  .admin-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
+}
+
+/* 7. Prevención de Desbordamiento Global */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}

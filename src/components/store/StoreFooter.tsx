@@ -69,29 +69,6 @@ export const StoreFooter: React.FC<StoreFooterProps> = ({ onOpenAdmin }) => {
                   Colección de Extractos
                 </a>
               </li>
-              <li>
-                <a href="#universo" style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textDecoration: 'none', transition: 'color 0.2s' }}>
-                  El Universo ADARA
-                </a>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={onOpenAdmin}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-gold)',
-                    fontSize: '13px',
-                    textAlign: 'left',
-                    padding: 0,
-                    fontWeight: 500
-                  }}
-                  data-cursor="ADMIN"
-                >
-                  Acceso Administrativo (Demo) ↗
-                </button>
-              </li>
             </ul>
           </div>
 
@@ -123,9 +100,30 @@ export const StoreFooter: React.FC<StoreFooterProps> = ({ onOpenAdmin }) => {
             color: 'var(--color-text-tertiary)'
           }}
         >
-          <div>
-            © {new Date().getFullYear()} ADARA PARFUM. Todos los derechos reservados.
-            <span style={{ marginLeft: '12px', color: 'var(--color-gold)' }}>[Fase 1: Prototipo Visual de Alta Fidelidad]</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+            <span>
+              © {new Date().getFullYear()} ADARA PARFUM. Todos los derechos reservados.
+            </span>
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              data-cursor="ADMIN"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-tertiary)',
+                fontSize: '11px',
+                cursor: 'pointer',
+                padding: '4px 0',
+                transition: 'color 0.2s ease',
+                letterSpacing: '0.04em'
+              }}
+              onMouseEnter={(event) => (event.currentTarget.style.color = 'var(--color-gold)')}
+              onMouseLeave={(event) => (event.currentTarget.style.color = 'var(--color-text-tertiary)')}
+              aria-label="Acceso al panel administrativo"
+            >
+              Acceso administrativo
+            </button>
           </div>
 
           <button

@@ -74,6 +74,7 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
           gridTemplateColumns: '1fr auto 1fr',
           alignItems: 'center'
         }}
+        className="navbar-grid"
       >
         {/* Left: Navigation links (Desktop) & Menu Toggle (Mobile) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
@@ -81,7 +82,6 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             style={{
-              display: 'none',
               background: 'none',
               border: 'none',
               color: 'var(--color-ivory)',
@@ -113,38 +113,6 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             >
               Colección
-            </a>
-            <a
-              href="#universo"
-              data-cursor="DESCUBRE"
-              style={{
-                fontSize: '11px',
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--color-text-secondary)',
-                fontWeight: 500,
-                transition: 'color 0.25s ease'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-gold)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
-            >
-              El Universo
-            </a>
-            <a
-              href="#experiencia"
-              data-cursor="LEER"
-              style={{
-                fontSize: '11px',
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--color-text-secondary)',
-                fontWeight: 500,
-                transition: 'color 0.25s ease'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-gold)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
-            >
-              Filosofía
             </a>
           </nav>
         </div>
@@ -321,14 +289,19 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <div
-          className="liquid-glass animate-rise"
+          className="liquid-glass animate-rise mobile-nav-dropdown"
           style={{
             position: 'absolute',
             top: '100%',
             left: 0,
             width: '100%',
             padding: '24px var(--page-gutter)',
-            borderBottom: '1px solid var(--color-border)'
+            borderBottom: '1px solid var(--color-border)',
+            backgroundColor: 'rgba(11, 11, 10, 0.98)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.85)',
+            zIndex: 100
           }}
         >
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -343,30 +316,6 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
               }}
             >
               Colección de Perfumes
-            </a>
-            <a
-              href="#universo"
-              onClick={() => setMobileMenuOpen(false)}
-              style={{
-                fontSize: '14px',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--color-ivory)'
-              }}
-            >
-              El Universo
-            </a>
-            <a
-              href="#experiencia"
-              onClick={() => setMobileMenuOpen(false)}
-              style={{
-                fontSize: '14px',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--color-ivory)'
-              }}
-            >
-              Filosofía Olfativa
             </a>
           </nav>
         </div>

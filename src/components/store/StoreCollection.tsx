@@ -137,7 +137,7 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
 
         {/* Toolbar: Filters & Sorting */}
         <div
-          className="liquid-glass"
+          className="liquid-glass collection-toolbar"
           style={{
             padding: '16px 24px',
             borderRadius: '6px',
@@ -225,9 +225,9 @@ export const StoreCollection: React.FC<StoreCollectionProps> = ({
           </div>
         ) : (
           <div
+            className="collection-grid"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
               gap: '40px'
             }}
           >

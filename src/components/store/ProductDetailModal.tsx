@@ -7,7 +7,7 @@ import {
   isPurchasableVariant,
   isPricedVariant
 } from '../../types';
-import { formatCOP, formatProductPrice, getProductImageUrl } from '../../data/mockData';
+import { formatCOP, getProductImageUrl } from '../../data/mockData';
 import { X, Plus, Minus, ShoppingBag, Sparkles } from 'lucide-react';
 
 /**
@@ -31,6 +31,10 @@ interface ProductDetailModalProps {
  * con actualización en tiempo real del precio unitario y existencias disponibles, control de cantidad
  * acotado al stock físico real, y cierre accesible mediante tecla Escape y bloqueo de scroll en el body.
  *
+ * En dispositivos móviles, la barra de acciones («Añadir a la bolsa», precio total y selector de cantidad)
+ * permanece visible de forma fija (sticky) en el borde inferior del modal para permitir la conversión
+ * inmediata sin obligar al usuario a desplazarse por toda la ficha técnica.
+ *
  * @param props - Propiedades del componente {@link ProductDetailModalProps}.
  * @returns Elemento modal interactivo o `null` si no hay producto activo.
  */
@@ -40,13 +44,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onAddToCart
 }) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [addedAnimation, setAddedAnimation] = useState(false);
+  const [productQuantity, setProductQuantity] = useState<number>(1);
+  const [isAddedFeedbackActive, setIsAddedFeedbackActive] = useState<boolean>(false);
 
-  // Inicializar selección de variante cuando cambia el producto
+  // Inicializar selección de variante cuando cambia el producto activo
   useEffect(() => {
-    setQuantity(1);
-    setAddedAnimation(false);
+    setProductQuantity(1);
+    setIsAddedFeedbackActive(false);
 
     if (product && Array.isArray(product.variants) && product.variants.length > 0) {
       // Priorizar la primera variante comprable disponible, o la primera de la lista
@@ -57,9 +61,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   }, [product]);
 
+  // Manejo de teclado (Escape) y bloqueo de scroll en la ventana global
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
     };
     if (product) {
       window.addEventListener('keydown', handleKeyDown);
@@ -74,36 +79,40 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   if (!product) return null;
 
   const hasVariants = Boolean(Array.isArray(product.variants) && product.variants.length > 0);
-  const activeVariant = hasVariants && product.variants
-    ? product.variants.find((v) => v.id === selectedVariantId) || null
+  const activeSelectedVariant = hasVariants && product.variants
+    ? product.variants.find((variant) => variant.id === selectedVariantId) || null
     : null;
 
-  // Si tiene variantes, los precios y stock derivan estrictamente de la variante seleccionada
-  const isPriced = hasVariants
-    ? isPricedVariant(activeVariant)
+  // Derivaciones de negocio: Si tiene variantes, los precios y stock derivan estrictamente de la variante seleccionada
+  const isProductOrVariantPriced = hasVariants
+    ? isPricedVariant(activeSelectedVariant)
     : isPricedProduct(product);
 
-  const isAvailable = hasVariants
-    ? Boolean(activeVariant && typeof activeVariant.stock === 'number' && activeVariant.stock > 0 && activeVariant.status === 'active')
+  const isInventoryAvailable = hasVariants
+    ? Boolean(activeSelectedVariant && typeof activeSelectedVariant.stock === 'number' && activeSelectedVariant.stock > 0 && activeSelectedVariant.status === 'active')
     : (typeof product.stock === 'number' ? product.stock > 0 && product.status === 'active' : false);
 
-  const canPurchase = hasVariants
-    ? isPurchasableVariant(activeVariant)
+  const isEligibleForPurchase = hasVariants
+    ? isPurchasableVariant(activeSelectedVariant)
     : isPurchasableProduct(product);
 
-  const maxStock = hasVariants
-    ? (activeVariant && typeof activeVariant.stock === 'number' && activeVariant.stock > 0 ? activeVariant.stock : 1)
+  const maximumAvailableStock = hasVariants
+    ? (activeSelectedVariant && typeof activeSelectedVariant.stock === 'number' && activeSelectedVariant.stock > 0 ? activeSelectedVariant.stock : 1)
     : (typeof product.stock === 'number' && product.stock > 0 ? product.stock : 1);
 
-  const unitPrice = hasVariants
-    ? (activeVariant ? activeVariant.priceCOP : null)
+  const activeUnitPriceCOP = hasVariants
+    ? (activeSelectedVariant ? activeSelectedVariant.priceCOP : null)
     : product.priceCOP;
 
-  const handleAdd = () => {
-    if (!canPurchase) return;
-    onAddToCart(product, Math.min(quantity, maxStock), activeVariant || undefined);
-    setAddedAnimation(true);
-    setTimeout(() => setAddedAnimation(false), 1400);
+  /**
+   * Ejecuta la adición del producto o variante al carrito y proporciona
+   * retroalimentación háptica/visual inmediata cambiando el botón temporalmente.
+   */
+  const handleAddToCartAction = () => {
+    if (!isEligibleForPurchase) return;
+    onAddToCart(product, Math.min(productQuantity, maximumAvailableStock), activeSelectedVariant || undefined);
+    setIsAddedFeedbackActive(true);
+    setTimeout(() => setIsAddedFeedbackActive(false), 1400);
   };
 
   return (
@@ -123,7 +132,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="liquid-glass animate-rise"
+        className="liquid-glass animate-rise modal-container"
         style={{
           width: '100%',
           maxWidth: '920px',
@@ -145,6 +154,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           type="button"
           onClick={onClose}
           data-cursor="CERRAR"
+          className="modal-close-btn"
           style={{
             position: 'absolute',
             top: '20px',
@@ -170,13 +180,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(300px, 1.05fr) minmax(320px, 1.25fr)'
+            display: 'grid'
           }}
           className="modal-grid"
         >
           {/* Left: Product Visual & Luxury Fallback */}
           <div
+            className="modal-image-pane"
             style={{
               position: 'relative',
               backgroundColor: '#11110f',
@@ -264,12 +274,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 color: 'var(--color-gold)'
               }}
             >
-              {(product.brand || 'ADARA PARFUM').toUpperCase()}{activeVariant ? ` · ${activeVariant.volume.toUpperCase()}` : product.volume ? ` · ${product.volume.toUpperCase()}` : ''}
+              {(product.brand || 'ADARA PARFUM').toUpperCase()}{activeSelectedVariant ? ` · ${activeSelectedVariant.volume.toUpperCase()}` : product.volume ? ` · ${product.volume.toUpperCase()}` : ''}
             </div>
           </div>
 
           {/* Right: Olfactory Experience & Specs */}
-          <div style={{ padding: '40px 36px', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="modal-content-pane"
+            style={{ padding: '40px 36px', display: 'flex', flexDirection: 'column' }}
+          >
             {product.family && (
               <div className="eyebrow" style={{ marginBottom: '10px' }}>
                 {product.family}
@@ -290,6 +303,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Olfactory Pyramid / Accords Section */}
             <div
+              className="modal-notes-box"
               style={{
                 backgroundColor: 'rgba(11, 11, 10, 0.6)',
                 borderRadius: '6px',
@@ -367,15 +381,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Presentation / Variant Selector (Fase 2.5A) */}
             {hasVariants && product.variants && product.variants.length > 0 && (
-              <div style={{ marginBottom: '24px' }}>
+              <div className="modal-variants-section" style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--color-gold)', fontWeight: 600 }}>
                     Seleccionar Presentación
                   </span>
-                  {activeVariant && (
+                  {activeSelectedVariant && (
                     <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                      {typeof activeVariant.stock === 'number' && activeVariant.stock > 0
-                        ? `${activeVariant.stock} ${activeVariant.stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`
+                      {typeof activeSelectedVariant.stock === 'number' && activeSelectedVariant.stock > 0
+                        ? `${activeSelectedVariant.stock} ${activeSelectedVariant.stock === 1 ? 'unidad disponible' : 'unidades disponibles'}`
                         : 'Agotado'}
                     </span>
                   )}
@@ -393,7 +407,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         type="button"
                         onClick={() => {
                           setSelectedVariantId(variant.id);
-                          setQuantity(1);
+                          setProductQuantity(1);
                         }}
                         style={{
                           display: 'flex',
@@ -432,87 +446,85 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
             )}
 
-            {/* Price & Quantity Bar */}
-            <div
-              style={{
-                marginTop: 'auto',
-                paddingTop: '20px',
-                borderTop: '1px solid var(--color-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '16px'
-              }}
-            >
-              <div>
-                <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-text-tertiary)' }}>
-                  {activeVariant ? `Total ${activeVariant.volume} en COP` : 'Total en COP'}
-                </span>
-                <p
-                  style={{
-                    fontSize: isPriced ? '24px' : '18px',
-                    fontWeight: 600,
-                    color: isPriced ? 'var(--color-ivory)' : 'var(--color-gold-light)',
-                    margin: 0
-                  }}
-                >
-                  {isPriced && typeof unitPrice === 'number' ? formatCOP(unitPrice * quantity) : 'Bajo consulta'}
-                </p>
-              </div>
+            {/* Price & Quantity Action Bar (Sticky on Mobile, Integrated on Desktop) */}
+            <div className="modal-action-bar">
+              <div className="modal-action-bar-header">
+                <div>
+                  <span className="modal-action-bar-label">
+                    {activeSelectedVariant ? `Total ${activeSelectedVariant.volume} en COP` : 'Total en COP'}
+                  </span>
+                  <p
+                    className="modal-action-bar-price"
+                    style={{
+                      fontSize: isProductOrVariantPriced ? '24px' : '18px',
+                      fontWeight: 600,
+                      color: isProductOrVariantPriced ? 'var(--color-ivory)' : 'var(--color-gold-light)',
+                      margin: 0
+                    }}
+                  >
+                    {isProductOrVariantPriced && typeof activeUnitPriceCOP === 'number'
+                      ? formatCOP(activeUnitPriceCOP * productQuantity)
+                      : 'Bajo consulta'}
+                  </p>
+                </div>
 
-              {/* Quantity Stepper (Clamped to Available Stock) */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: canPurchase ? 'rgba(11, 11, 10, 0.8)' : 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '4px',
-                  opacity: canPurchase ? 1 : 0.4
-                }}
-              >
-                <button
-                  type="button"
-                  disabled={!canPurchase || quantity <= 1}
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                {/* Quantity Stepper (Clamped to Available Stock) */}
+                <div
+                  className="modal-stepper-container"
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-ivory)',
-                    padding: '8px 12px',
-                    cursor: canPurchase && quantity > 1 ? 'pointer' : 'not-allowed'
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: isEligibleForPurchase ? 'rgba(11, 11, 10, 0.8)' : 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    opacity: isEligibleForPurchase ? 1 : 0.4
                   }}
-                  aria-label="Disminuir cantidad"
                 >
-                  <Minus size={14} />
-                </button>
-                <span style={{ minWidth: '24px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
-                  {quantity}
-                </span>
-                <button
-                  type="button"
-                  disabled={!canPurchase || quantity >= maxStock}
-                  onClick={() => setQuantity(Math.min(maxStock, quantity + 1))}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-ivory)',
-                    padding: '8px 12px',
-                    cursor: canPurchase && quantity < maxStock ? 'pointer' : 'not-allowed'
-                  }}
-                  aria-label="Aumentar cantidad"
-                >
-                  <Plus size={14} />
-                </button>
+                  <button
+                    type="button"
+                    disabled={!isEligibleForPurchase || productQuantity <= 1}
+                    onClick={() => setProductQuantity(Math.max(1, productQuantity - 1))}
+                    className="modal-stepper-btn"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-ivory)',
+                      padding: '8px 12px',
+                      cursor: isEligibleForPurchase && productQuantity > 1 ? 'pointer' : 'not-allowed'
+                    }}
+                    aria-label="Disminuir cantidad"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="modal-stepper-value" style={{ minWidth: '24px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
+                    {productQuantity}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!isEligibleForPurchase || productQuantity >= maximumAvailableStock}
+                    onClick={() => setProductQuantity(Math.min(maximumAvailableStock, productQuantity + 1))}
+                    className="modal-stepper-btn"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-ivory)',
+                      padding: '8px 12px',
+                      cursor: isEligibleForPurchase && productQuantity < maximumAvailableStock ? 'pointer' : 'not-allowed'
+                    }}
+                    aria-label="Aumentar cantidad"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
 
               {/* Add / Action Button */}
               <button
                 type="button"
-                disabled={!canPurchase}
-                onClick={handleAdd}
-                data-cursor={canPurchase ? 'AÑADIR' : undefined}
+                disabled={!isEligibleForPurchase}
+                onClick={handleAddToCartAction}
+                data-cursor={isEligibleForPurchase ? 'AÑADIR' : undefined}
+                className="modal-action-btn"
                 style={{
                   flex: 1,
                   display: 'inline-flex',
@@ -520,29 +532,29 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   justifyContent: 'center',
                   gap: '10px',
                   padding: '14px 24px',
-                  backgroundColor: canPurchase
-                    ? addedAnimation
+                  backgroundColor: isEligibleForPurchase
+                    ? isAddedFeedbackActive
                       ? 'var(--color-success)'
                       : 'var(--color-gold)'
                     : 'rgba(255, 255, 255, 0.04)',
-                  color: canPurchase ? 'var(--color-obsidian)' : 'var(--color-text-tertiary)',
-                  border: canPurchase ? 'none' : '1px solid var(--color-border)',
+                  color: isEligibleForPurchase ? 'var(--color-obsidian)' : 'var(--color-text-tertiary)',
+                  border: isEligibleForPurchase ? 'none' : '1px solid var(--color-border)',
                   borderRadius: '4px',
                   fontSize: '11px',
                   fontWeight: 700,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
-                  cursor: canPurchase ? 'pointer' : 'not-allowed',
+                  cursor: isEligibleForPurchase ? 'pointer' : 'not-allowed',
                   transition: 'all 0.3s ease'
                 }}
               >
-                {canPurchase && <ShoppingBag size={16} />}
+                {isEligibleForPurchase && <ShoppingBag size={16} />}
                 <span>
-                  {canPurchase
-                    ? addedAnimation
+                  {isEligibleForPurchase
+                    ? isAddedFeedbackActive
                       ? '¡Agregado a la bolsa!'
                       : 'Añadir a la bolsa'
-                    : !isPriced
+                    : !isProductOrVariantPriced
                     ? 'Precio Bajo Consulta'
                     : 'Agotado'}
                 </span>

@@ -4,13 +4,11 @@ import { INITIAL_PRODUCTS, INITIAL_ORDERS, getProductImageUrl } from './data/moc
 
 // Common Components
 import { CustomCursor } from './components/common/CustomCursor';
-import { ViewSwitcher } from './components/common/ViewSwitcher';
 import { Toast, ToastMessage } from './components/common/Toast';
 
 // Store Components
 import { StoreNavbar } from './components/store/StoreNavbar';
 import { StoreHero } from './components/store/StoreHero';
-import { StoreEditorial } from './components/store/StoreEditorial';
 import { StoreCollection } from './components/store/StoreCollection';
 import { ProductDetailModal } from './components/store/ProductDetailModal';
 import { CartDrawer } from './components/store/CartDrawer';
@@ -474,11 +472,6 @@ export const App: React.FC = () => {
       {/* Custom Luxury Interactive Cursor */}
       <CustomCursor />
 
-      {/* Floating Interface Switcher */}
-      <div style={{ pointerEvents: isLoginModalOpen ? 'none' : 'auto' }}>
-        <ViewSwitcher currentView={currentView} onSwitch={handleSwitchView} />
-      </div>
-
       {/* Toast Feedback */}
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
 
@@ -508,9 +501,6 @@ export const App: React.FC = () => {
 
           {/* Hero Section */}
           <StoreHero />
-
-          {/* Editorial Universe Section */}
-          <StoreEditorial />
 
           {/* Collection Section */}
           <StoreCollection

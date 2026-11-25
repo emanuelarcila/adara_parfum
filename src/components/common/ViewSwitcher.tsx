@@ -23,6 +23,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitc
   return (
     <aside
       aria-label="Selector de interfaces"
+      className="view-switcher-container"
       style={{
         position: 'fixed',
         bottom: '24px',
@@ -45,6 +46,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitc
           type="button"
           onClick={() => onSwitch('store')}
           data-cursor="TIENDA"
+          className="view-switcher-btn"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -62,13 +64,15 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitc
           }}
         >
           <Store size={14} />
-          <span>Tienda Pública</span>
+          <span className="view-switcher-text-full">Tienda Pública</span>
+          <span className="view-switcher-text-short">Tienda</span>
         </button>
 
         <button
           type="button"
           onClick={() => onSwitch('admin')}
           data-cursor="PANEL"
+          className="view-switcher-btn"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -86,7 +90,8 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onSwitc
           }}
         >
           <ShieldCheck size={14} />
-          <span>Panel Control</span>
+          <span className="view-switcher-text-full">Panel Control</span>
+          <span className="view-switcher-text-short">Panel</span>
           <span
             style={{
               fontSize: '8px',
